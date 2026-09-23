@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeropass/events/validacion.fallida/v1",
+  "title": "validacion.fallida v1",
+  "description": "Contrato definido en este repo (constitución, patrón Observer) y PRODUCIDO por el módulo de checkpoint (fuera del alcance de la feature 001). Se publica vía QStash cuando una CredencialAcceso es rechazada en el checkpoint. Entrega al menos una vez: los consumidores (auditoría, escalamiento) deben deduplicar por `id`. No contiene datos del documento ni imágenes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "tipo", "version", "ocurrido_at", "datos"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "description": "Id único del evento" },
+    "tipo": { "const": "validacion.fallida" },
+    "version": { "const": 1 },
+    "ocurrido_at": { "type": "string", "format": "date-time" },
+    "datos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["credencial_id", "motivo", "checkpoint_id"],
+      "properties": {
+        "credencial_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "jti de la credencial; null si el token no pudo decodificarse"
+        },
+        "pasajero_id": { "type": ["string", "null"], "format": "uuid" },
+        "codigo_vuelo": { "type": ["string", "null"] },
+        "motivo": {
+          "type": "string",
+          "enum": [
+            "TOKEN_INVALIDO",
+            "FIRMA_INVALIDA",
+            "EXPIRADA",
+            "REVOCADA",
+            "YA_CONSUMIDA",
+            "VUELO_CANCELADO",
+            "LIMITE_EXCEDIDO",
+            "NO_ENCONTRADA"
+          ],
+          "description": "Eslabón de la cadena de validación que rechazó (RN-06 → YA_CONSUMIDA, RN-07 → VUELO_CANCELADO)"
+        },
+        "checkpoint_id": { "type": "string", "description": "Identificador del punto de control" },
+        "modo": { "type": "string", "enum": ["EN_LINEA", "CONTINGENCIA"], "default": "EN_LINEA" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "01925f40-1111-7000-8000-00000000000a",
+      "tipo": "validacion.fallida",
+      "version": 1,
+      "ocurrido_at": "2026-09-23T15:10:00Z",
+      "datos": {
+        "credencial_id": "01925f3f-0000-7000-8000-000000000004",
+        "pasajero_id": "01925f39-0000-7000-8000-000000000001",
+        "codigo_vuelo": "AV9380",
+        "motivo": "YA_CONSUMIDA",
+        "checkpoint_id": "BOG-T1-FILTRO-03",
+        "modo": "EN_LINEA"
+      }
+    }
+  ]
+}

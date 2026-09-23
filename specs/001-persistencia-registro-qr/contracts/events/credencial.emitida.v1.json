@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aeropass/events/credencial.emitida/v1",
+  "title": "credencial.emitida v1",
+  "description": "Se publica vía QStash (POST JSON a cada destino suscrito) cuando se crea una IdentidadDigital tras una verificación biométrica exitosa. Entrega al menos una vez: los consumidores deben deduplicar por `id` (también enviado como cabecera Upstash-Deduplication-Id). No contiene datos del documento ni imágenes (FR-014).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "tipo", "version", "ocurrido_at", "datos"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "description": "Id único del evento (= outbox_eventos.id)" },
+    "tipo": { "const": "credencial.emitida" },
+    "version": { "const": 1 },
+    "ocurrido_at": { "type": "string", "format": "date-time" },
+    "datos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo_credencial", "pasajero_id", "identidad_id", "intento_id"],
+      "properties": {
+        "tipo_credencial": { "const": "IDENTIDAD_DIGITAL" },
+        "pasajero_id": { "type": "string", "format": "uuid" },
+        "identidad_id": { "type": "string", "format": "uuid" },
+        "intento_id": { "type": "string", "format": "uuid" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "01925f3a-7c1e-7b2a-9d4e-3f6a1b2c3d4e",
+      "tipo": "credencial.emitida",
+      "version": 1,
+      "ocurrido_at": "2026-09-23T15:04:05Z",
+      "datos": {
+        "tipo_credencial": "IDENTIDAD_DIGITAL",
+        "pasajero_id": "01925f39-0000-7000-8000-000000000001",
+        "identidad_id": "01925f3a-0000-7000-8000-000000000002",
+        "intento_id": "01925f3a-0000-7000-8000-000000000003"
+      }
+    }
+  ]
+}

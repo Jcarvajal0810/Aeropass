@@ -1,0 +1,409 @@
+openapi: 3.1.0
+info:
+  title: AeroPass Backend — Registro, biometría y pases
+  version: 1.0.0
+  description: >
+    Endpoints de la feature 001-persistencia-registro-qr. Todas las rutas /v1 exigen un
+    session token de Clerk en `Authorization: Bearer <token>` y solo operan sobre el pasajero
+    de la cuenta autenticada (FR-022). Los errores usan el formato `Error`.
+servers:
+  - url: https://{deployment}.vercel.app
+    variables:
+      deployment:
+        default: aeropass-backend
+
+security:
+  - clerkSession: []
+
+paths:
+  /v1/identity:
+    post:
+      operationId: registrarDocumento
+      summary: Registra los datos leídos del documento y la foto del rostro del documento (Historia 1)
+      description: >
+        La foto se guarda en el store privado de medios (FR-001a) y es la referencia para la
+        comparación biométrica. En un reenvío idéntico desde la misma cuenta (200) la foto nueva
+        se ignora.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/RegistroDocumentoRequest' }
+            encoding:
+              foto_documento:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        '201':
+          description: Pasajero creado en PENDIENTE_VERIFICACION
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pasajero' }
+        '200':
+          description: Reenvío desde la misma cuenta; se devuelve el pasajero existente sin duplicar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pasajero' }
+        '409':
+          description: >
+            Documento ya registrado por otra cuenta (`DOCUMENTO_YA_REGISTRADO`) o la cuenta ya
+            registró un documento distinto (`CUENTA_YA_REGISTRADA`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: Foto mayor a 4 MB (`IMAGEN_DEMASIADO_GRANDE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '415':
+          description: Formato de foto no admitido (`FORMATO_NO_ADMITIDO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: Campos faltantes o inválidos (`DATOS_INVALIDOS`) o documento vencido (`DOCUMENTO_VENCIDO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: No se pudo almacenar la foto; no se persistió el pasajero (`ALMACENAMIENTO_NO_DISPONIBLE`)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /v1/identity/me:
+    get:
+      operationId: obtenerMiPasajero
+      summary: Estado actual del pasajero autenticado
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pasajero' }
+          description: OK
+        '404':
+          description: La cuenta aún no registró su documento (`PASAJERO_NO_REGISTRADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /v1/biometrics/verifications:
+    post:
+      operationId: verificarSelfie
+      summary: Sube una selfie y evalúa prueba de vida + comparación (Historias 2 y 3)
+      description: >
+        La imagen se guarda en un store privado; solo se persiste su referencia. Si el
+        resultado es EXITOSO se crea la IdentidadDigital y se encola `credencial.emitida`
+        sin esperar su entrega. Si el proveedor falla o su circuit breaker está abierto,
+        responde 200 con resultado NO_CONCLUYENTE (no cuenta como fallo).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [selfie]
+              properties:
+                selfie:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG o WebP, máximo 4 MB
+            encoding:
+              selfie:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        '200':
+          description: Intento registrado (EXITOSO, FALLIDO o NO_CONCLUYENTE)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResultadoVerificacion' }
+        '404':
+          description: La cuenta no tiene pasajero registrado (`PASAJERO_NO_REGISTRADO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: El pasajero ya está VERIFICADO o en REQUIERE_REVISION_MANUAL (`ESTADO_NO_PERMITE_VERIFICACION`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: Imagen mayor a 4 MB (`IMAGEN_DEMASIADO_GRANDE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '415':
+          description: Formato no admitido (`FORMATO_NO_ADMITIDO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: No se pudo almacenar la imagen; no se evaluó ni se registró intento (`ALMACENAMIENTO_NO_DISPONIBLE`)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /v1/passes:
+    post:
+      operationId: emitirPase
+      summary: Emite (o renueva) la CredencialAcceso QR para un vuelo (Historia 4)
+      description: >
+        Si ya existe una credencial EMITIDA/ACTIVA para el mismo pasajero y vuelo, se revoca
+        (motivo RENOVACION) en la misma operación. La app debe llamar de nuevo a los
+        `renovar_en_segundos` para mostrar siempre un QR vigente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmitirPaseRequest' }
+      responses:
+        '201':
+          description: Credencial ACTIVA emitida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pase' }
+        '403':
+          description: >
+            Sin IdentidadDigital ACTIVA (`IDENTIDAD_NO_ACTIVA`) o documento vencido
+            (`DOCUMENTO_VENCIDO`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: Código de vuelo con formato inválido (`DATOS_INVALIDOS`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Más de 30 emisiones en el último minuto (`LIMITE_EMISION_EXCEDIDO`)
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /v1/passes/{credencialId}:
+    get:
+      operationId: obtenerPase
+      summary: Estado actual e historial de una credencial del pasajero autenticado
+      parameters:
+        - name: credencialId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK (aplica expiración perezosa antes de responder)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DetallePase' }
+        '404':
+          description: No existe o no pertenece al pasajero (`CREDENCIAL_NO_ENCONTRADA`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /.well-known/jwks.json:
+    get:
+      operationId: clavesPublicasQr
+      summary: Claves públicas Ed25519 para verificar la firma del QR (punto de extensión del checkpoint)
+      security: []
+      responses:
+        '200':
+          description: JWKS
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      required: [kty, crv, x, kid, alg, use]
+                      properties:
+                        kty: { const: OKP }
+                        crv: { const: Ed25519 }
+                        x: { type: string }
+                        kid: { type: string }
+                        alg: { const: EdDSA }
+                        use: { const: sig }
+
+  /internal/outbox/dispatch:
+    post:
+      operationId: despacharOutbox
+      summary: Reintenta eventos pendientes y marca credenciales expiradas (invocado por schedule de QStash)
+      security:
+        - qstashSignature: []
+      responses:
+        '200':
+          description: Resumen del ciclo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [eventos_entregados, eventos_pendientes, credenciales_expiradas]
+                properties:
+                  eventos_entregados: { type: integer }
+                  eventos_pendientes: { type: integer }
+                  credenciales_expiradas: { type: integer }
+        '401':
+          description: Firma de QStash ausente o inválida
+
+components:
+  securitySchemes:
+    clerkSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Session token emitido por Clerk
+    qstashSignature:
+      type: apiKey
+      in: header
+      name: Upstash-Signature
+
+  responses:
+    NoAutenticado:
+      description: Token ausente, inválido o expirado (`NO_AUTENTICADO`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          enum:
+            - NO_AUTENTICADO
+            - DATOS_INVALIDOS
+            - DOCUMENTO_VENCIDO
+            - DOCUMENTO_YA_REGISTRADO
+            - CUENTA_YA_REGISTRADA
+            - PASAJERO_NO_REGISTRADO
+            - ESTADO_NO_PERMITE_VERIFICACION
+            - IMAGEN_DEMASIADO_GRANDE
+            - FORMATO_NO_ADMITIDO
+            - ALMACENAMIENTO_NO_DISPONIBLE
+            - IDENTIDAD_NO_ACTIVA
+            - LIMITE_EMISION_EXCEDIDO
+            - CREDENCIAL_NO_ENCONTRADA
+        mensaje: { type: string }
+        detalles:
+          type: object
+          additionalProperties: true
+          description: p. ej. lista de campos faltantes
+
+    RegistroDocumentoRequest:
+      type: object
+      required: [nombre_completo, tipo_documento, numero_documento, fecha_vencimiento, foto_documento]
+      properties:
+        nombre_completo: { type: string, minLength: 2, maxLength: 200 }
+        tipo_documento: { type: string, enum: [CC, CE, PASAPORTE] }
+        numero_documento: { type: string, minLength: 4, maxLength: 20 }
+        fecha_vencimiento: { type: string, format: date }
+        foto_documento:
+          type: string
+          format: binary
+          description: Rostro recortado del documento; JPEG, PNG o WebP, máximo 4 MB
+
+    Pasajero:
+      type: object
+      required: [id, nombre_completo, tipo_documento, numero_documento_enmascarado, fecha_vencimiento, estado, intentos_fallidos]
+      properties:
+        id: { type: string, format: uuid }
+        nombre_completo: { type: string }
+        tipo_documento: { type: string, enum: [CC, CE, PASAPORTE] }
+        numero_documento_enmascarado:
+          type: string
+          description: Solo los últimos 4 dígitos visibles, p. ej. "******4321"
+        fecha_vencimiento: { type: string, format: date }
+        estado: { type: string, enum: [PENDIENTE_VERIFICACION, VERIFICADO, REQUIERE_REVISION_MANUAL] }
+        intentos_fallidos: { type: integer, minimum: 0, maximum: 3 }
+        identidad_id:
+          type: [string, 'null']
+          format: uuid
+
+    ResultadoVerificacion:
+      type: object
+      required: [intento_id, resultado, estado_pasajero, intentos_restantes]
+      properties:
+        intento_id: { type: string, format: uuid }
+        resultado: { type: string, enum: [EXITOSO, FALLIDO, NO_CONCLUYENTE] }
+        motivo_fallo:
+          type: [string, 'null']
+          enum: [LIVENESS, COMPARACION, null]
+        score_liveness: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        score_comparacion: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        estado_pasajero: { type: string, enum: [PENDIENTE_VERIFICACION, VERIFICADO, REQUIERE_REVISION_MANUAL] }
+        intentos_restantes: { type: integer, minimum: 0, maximum: 3 }
+        identidad_id:
+          type: [string, 'null']
+          format: uuid
+          description: Presente solo si el resultado es EXITOSO
+        reintentar_en_segundos:
+          type: [integer, 'null']
+          description: Presente solo si el resultado es NO_CONCLUYENTE
+
+    EmitirPaseRequest:
+      type: object
+      required: [codigo_vuelo]
+      properties:
+        codigo_vuelo:
+          type: string
+          pattern: '^[A-Z0-9]{2}[0-9]{1,4}[A-Z]?$'
+          examples: [AV9380]
+
+    Pase:
+      type: object
+      required: [credencial_id, token, codigo_vuelo, permisos, estado, emitida_at, expira_at, renovar_en_segundos]
+      properties:
+        credencial_id: { type: string, format: uuid }
+        token:
+          type: string
+          description: JWS compacto EdDSA (claims jti, sub, flt, perms, iat, exp; header kid). Contenido del QR.
+        codigo_vuelo: { type: string }
+        permisos:
+          type: array
+          items: { type: string }
+          minItems: 1
+        estado: { const: ACTIVA }
+        emitida_at: { type: string, format: date-time }
+        expira_at: { type: string, format: date-time }
+        renovar_en_segundos:
+          type: integer
+          description: Segundos tras los cuales la app debe pedir la renovación (vida del QR menos 5 s)
+
+    DetallePase:
+      type: object
+      required: [credencial_id, codigo_vuelo, estado, emitida_at, expira_at, historial]
+      properties:
+        credencial_id: { type: string, format: uuid }
+        codigo_vuelo: { type: string }
+        estado: { type: string, enum: [EMITIDA, ACTIVA, CONSUMIDA, EXPIRADA, REVOCADA] }
+        emitida_at: { type: string, format: date-time }
+        expira_at: { type: string, format: date-time }
+        historial:
+          type: array
+          items:
+            type: object
+            required: [estado_solicitado, aceptada, created_at]
+            properties:
+              estado_anterior:
+                type: [string, 'null']
+              estado_solicitado: { type: string }
+              aceptada: { type: boolean }
+              motivo: { type: [string, 'null'] }
+              created_at: { type: string, format: date-time }

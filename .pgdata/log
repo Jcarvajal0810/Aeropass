@@ -1,0 +1,4 @@
+2026-09-23 05:47:46.757 GMT [18948] LOG:  starting PostgreSQL 16.2 on x86_64-pc-mingw64, compiled by gcc.exe (x86_64-posix-seh-rev2, Built by MinGW-W64 project) 12.2.0, 64-bit
+2026-09-23 05:47:46.758 GMT [18948] LOG:  listening on IPv4 address "127.0.0.1", port 65036
+2026-09-23 05:47:46.883 GMT [34168] LOG:  database system was shut down at 2026-09-23 05:47:43 GMT
+2026-09-23 05:47:46.979 GMT [18948] LOG:  database system is ready to accept connections
