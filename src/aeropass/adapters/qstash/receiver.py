@@ -15,7 +15,7 @@ class QStashSignatureVerifier:
     async def verify(self, request: Request) -> None:
         signature = request.headers.get("upstash-signature")
         if not signature:
-            raise NoAutenticado("Firma de QStash ausente")
+            raise NoAutenticado("Missing QStash signature")
         body = (await request.body()).decode("utf-8")
         # Behind Vercel's proxy the scheme/host seen by the app may differ from the public URL
         # QStash signed, so the URL claim is checked only when the public base URL is known.
@@ -25,4 +25,4 @@ class QStashSignatureVerifier:
                 self._receiver.verify, signature=signature, body=body, url=url, clock_tolerance=5
             )
         except Exception as exc:
-            raise NoAutenticado("Firma de QStash inválida") from exc
+            raise NoAutenticado("Invalid QStash signature") from exc

@@ -1,7 +1,7 @@
 """Facade: ``verify_and_create_identity(pasajero, doc, selfie)`` (constitution, Facade pattern).
 
-Hides the pipeline documento → liveness → comparación → identidad (plan.md, "Verificación de
-selfie"). No DB transaction is open while talking to Blob or the biometric provider.
+Hides the pipeline document → liveness → face match → identity (plan.md, "Selfie
+verification"). No DB transaction is open while talking to Blob or the biometric provider.
 """
 
 from __future__ import annotations

@@ -25,7 +25,7 @@ EVERY_MINUTE = "* * * * *"
 async def run(consumers: list[str]) -> None:
     settings = get_settings()
     if not settings.qstash_token or not settings.public_base_url:
-        raise SystemExit("QSTASH_TOKEN y PUBLIC_BASE_URL son obligatorios")
+        raise SystemExit("QSTASH_TOKEN and PUBLIC_BASE_URL are required")
     client = AsyncQStash(settings.qstash_token)
     destination = f"{settings.public_base_url.rstrip('/')}/internal/outbox/dispatch"
     schedule_id = await client.schedule.create(
@@ -44,12 +44,12 @@ async def run(consumers: list[str]) -> None:
             url_group=settings.qstash_events_url_group,
             endpoints=[{"url": url} for url in consumers],
         )
-        print(f"URL group {settings.qstash_events_url_group}: {len(consumers)} consumidor(es)")
+        print(f"URL group {settings.qstash_events_url_group}: {len(consumers)} consumer(s)")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--consumer", action="append", default=[], help="URL de un consumidor")
+    parser.add_argument("--consumer", action="append", default=[], help="URL of a consumer")
     args = parser.parse_args()
     asyncio.run(run(args.consumer))
 

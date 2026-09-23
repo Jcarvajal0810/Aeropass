@@ -64,7 +64,7 @@ async def run(base_url: str, tokens: list[str], n: int, flight: str) -> int:
         )
     failures = [status for r in results for status in r]
     if not latencies:
-        print(f"sin respuestas exitosas; códigos: {failures}")
+        print(f"no successful responses; codes: {failures}")
         return 1
     p95 = percentile(latencies, 95)
     print(f"ok={len(latencies)} errores={len(failures)} {sorted(set(failures)) or ''}")
@@ -84,7 +84,7 @@ def main() -> None:
     args = parser.parse_args()
     tokens = [t.strip() for t in args.tokens.read_text().splitlines() if t.strip()]
     if not tokens:
-        raise SystemExit("el archivo de tokens está vacío")
+        raise SystemExit("the tokens file is empty")
     raise SystemExit(asyncio.run(run(args.base_url, tokens, args.n, args.flight)))
 
 

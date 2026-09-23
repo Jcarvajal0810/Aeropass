@@ -79,10 +79,10 @@ class CredencialAccesoBuilder:
         assert self._pasajero_id and self._identidad_id and self._signer and self._emitida_at
         assert self._ttl is not None
         if not TTL_MIN_SECONDS <= self._ttl <= TTL_MAX_SECONDS:
-            raise DatosInvalidos("La vigencia del QR debe ser de 30 a 60 segundos")
+            raise DatosInvalidos("QR validity must be between 30 and 60 seconds")
         if not self._permisos or not all(p.strip() for p in self._permisos):
             raise DatosInvalidos(
-                "La credencial requiere permisos", detalles={"campos": ["permisos"]}
+                "The credential requires permissions", detalles={"campos": ["permisos"]}
             )
         codigo_vuelo = normalizar_codigo_vuelo(self._codigo_vuelo)
 

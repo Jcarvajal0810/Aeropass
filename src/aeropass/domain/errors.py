@@ -23,19 +23,19 @@ class DomainError(Exception):
 class NoAutenticado(DomainError):
     codigo = "NO_AUTENTICADO"
     http_status = 401
-    mensaje_por_defecto = "Token ausente, inválido o expirado"
+    mensaje_por_defecto = "Missing, invalid or expired token"
 
 
 class DatosInvalidos(DomainError):
     codigo = "DATOS_INVALIDOS"
     http_status = 422
-    mensaje_por_defecto = "Datos inválidos"
+    mensaje_por_defecto = "Invalid data"
 
 
 class DocumentoVencido(DomainError):
     codigo = "DOCUMENTO_VENCIDO"
     http_status = 422
-    mensaje_por_defecto = "El documento está vencido"
+    mensaje_por_defecto = "The document has expired"
 
 
 class DocumentoVencidoParaPase(DocumentoVencido):
@@ -47,58 +47,58 @@ class DocumentoVencidoParaPase(DocumentoVencido):
 class DocumentoYaRegistrado(DomainError):
     codigo = "DOCUMENTO_YA_REGISTRADO"
     http_status = 409
-    mensaje_por_defecto = "El documento ya está registrado por otra cuenta"
+    mensaje_por_defecto = "The document is already registered by another account"
 
 
 class CuentaYaRegistrada(DomainError):
     codigo = "CUENTA_YA_REGISTRADA"
     http_status = 409
-    mensaje_por_defecto = "La cuenta ya registró un documento distinto"
+    mensaje_por_defecto = "The account already registered a different document"
 
 
 class PasajeroNoRegistrado(DomainError):
     codigo = "PASAJERO_NO_REGISTRADO"
     http_status = 404
-    mensaje_por_defecto = "La cuenta aún no registró su documento"
+    mensaje_por_defecto = "The account has not registered its document yet"
 
 
 class EstadoNoPermiteVerificacion(DomainError):
     codigo = "ESTADO_NO_PERMITE_VERIFICACION"
     http_status = 409
-    mensaje_por_defecto = "El estado del pasajero no admite nuevas verificaciones"
+    mensaje_por_defecto = "The passenger status does not allow new verifications"
 
 
 class ImagenDemasiadoGrande(DomainError):
     codigo = "IMAGEN_DEMASIADO_GRANDE"
     http_status = 413
-    mensaje_por_defecto = "La imagen supera el tamaño máximo de 4 MB"
+    mensaje_por_defecto = "The image exceeds the maximum size of 4 MB"
 
 
 class FormatoNoAdmitido(DomainError):
     codigo = "FORMATO_NO_ADMITIDO"
     http_status = 415
-    mensaje_por_defecto = "Formato de imagen no admitido (JPEG, PNG o WebP)"
+    mensaje_por_defecto = "Unsupported image format (JPEG, PNG or WebP)"
 
 
 class AlmacenamientoNoDisponible(DomainError):
     codigo = "ALMACENAMIENTO_NO_DISPONIBLE"
     http_status = 503
-    mensaje_por_defecto = "El almacenamiento no está disponible, reintenta más tarde"
+    mensaje_por_defecto = "Storage is unavailable, please retry later"
 
 
 class IdentidadNoActiva(DomainError):
     codigo = "IDENTIDAD_NO_ACTIVA"
     http_status = 403
-    mensaje_por_defecto = "El pasajero no tiene una identidad digital activa"
+    mensaje_por_defecto = "The passenger has no active digital identity"
 
 
 class LimiteEmisionExcedido(DomainError):
     codigo = "LIMITE_EMISION_EXCEDIDO"
     http_status = 429
-    mensaje_por_defecto = "Se superó el límite de emisiones por minuto"
+    mensaje_por_defecto = "The per-minute issuance limit was exceeded"
 
 
 class CredencialNoEncontrada(DomainError):
     codigo = "CREDENCIAL_NO_ENCONTRADA"
     http_status = 404
-    mensaje_por_defecto = "La credencial no existe"
+    mensaje_por_defecto = "The credential does not exist"

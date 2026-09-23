@@ -1,4 +1,4 @@
-"""US4 — Emisión (y renovación automática) del QR dinámico (plan.md, "Emisión de pase")."""
+"""US4 — Issuance (and automatic renewal) of the dynamic QR (plan.md, "Pass issuance")."""
 
 from __future__ import annotations
 

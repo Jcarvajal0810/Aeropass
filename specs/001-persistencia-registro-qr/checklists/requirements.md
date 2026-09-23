@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Persistencia del flujo de registro, verificación biométrica y QR
+# Specification Quality Checklist: Persistence of the registration, biometric verification and QR flow
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-09-23
@@ -32,7 +32,7 @@
 ## Notes
 
 - The feature is explicitly about *where* data is persisted, so requirements refer to generic stores
-  ("almacén relacional", "almacén de medios", "almacén rápido", "canal de eventos"). The concrete
+  ("relational store", "media store", "fast store", "event channel"). The concrete
   products (Neon, Vercel Blob, Upstash Redis/QStash) appear only in Assumptions, as mandated by the
   constitution.
 - No [NEEDS CLARIFICATION] markers were used; defaults were chosen and documented in Assumptions.

@@ -1,4 +1,4 @@
-"""US2 — Verificación biométrica con selfie (spec.md scenarios 1–5 + edge cases)."""
+"""US2 — Biometric verification with a selfie (spec.md scenarios 1–5 + edge cases)."""
 
 import asyncio
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aeropass.api.deps import Container
@@ -25,9 +26,19 @@ def create_app(container: Container | None = None) -> FastAPI:
     app = FastAPI(
         title="AeroPass Backend",
         version="1.0.0",
-        description="Registro, verificación biométrica, identidad digital y QR dinámico",
+        description="Registration, biometric verification, digital identity and dynamic QR",
     )
     app.state.container = container or Container.from_env()
+
+    # Open to any origin until the frontend has a fixed domain. Auth travels in the
+    # Authorization header (not cookies), so credentials stay disabled.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["Retry-After"],
+    )
 
     @app.exception_handler(DomainError)
     async def _domain_error(_: Request, exc: DomainError) -> JSONResponse:

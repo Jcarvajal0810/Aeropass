@@ -3,20 +3,20 @@
 description: "Task list for 001-persistencia-registro-qr"
 ---
 
-# Tasks: Persistencia del flujo de registro, verificación biométrica y QR
+# Tasks: Persistence of the registration, biometric verification and QR flow
 
 **Input**: Design documents from `/specs/001-persistencia-registro-qr/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Tests**: se incluyen las pruebas que exigen los criterios de éxito del spec (SC-002 rendimiento,
-SC-004 concurrencia, SC-006 recuperación del outbox), FR-019 (rechazos registrados) y las pruebas
-clave listadas en `quickstart.md`. Escribirlas primero y verificar que fallan antes de implementar.
+**Tests**: includes the tests required by the spec's success criteria (SC-002 performance,
+SC-004 concurrency, SC-006 outbox recovery), FR-019 (recorded rejections) and the key tests listed
+in `quickstart.md`. Write them first and verify they fail before implementing.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-**Revision**: regenerado tras `/speckit-analyze` (hallazgos U1, C1, C2, I1, I2, P1, P2, G1, A1,
-T2, D1, D2, D3, S1 corregidos).
+**Revision**: regenerated after `/speckit-analyze` (findings U1, C1, C2, I1, I2, P1, P2, G1, A1,
+T2, D1, D2, D3, S1 fixed).
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -24,22 +24,20 @@ T2, D1, D2, D3, S1 corregidos).
 - **[Story]**: Which user story this task belongs to (US1–US4)
 - Paths are relative to the repository root. Python package: `src/aeropass/`
 
-## Convenciones para todas las tareas
+## Conventions for all tasks
 
-- Reglas de negocio solo en `src/aeropass/domain/` (DRY). Los servicios reciben puertos
-  (`typing.Protocol` en `src/aeropass/ports/`) por constructor; solo `src/aeropass/api/deps.py`
-  instancia clases concretas (SOLID).
-- Dobles de servicios externos en `src/aeropass/adapters/fakes/` (pruebas y
-  `AEROPASS_ADAPTERS=fake`). Postgres es siempre real; `InMemoryUnitOfWork` solo se usa en pruebas
-  unitarias de servicios (plan.md, "Modos de adaptadores").
-- Ninguna transacción de Postgres permanece abierta durante una llamada a Blob, al proveedor
-  biométrico o a QStash.
-- Los métodos de transición de la credencial devuelven `TransitionResult` y nunca lanzan por una
-  transición inválida (data-model.md).
-- Cada método público de servicio y adapter externo lleva `@traced("<nombre>")` de
+- Business rules only in `src/aeropass/domain/` (DRY). Services receive ports
+  (`typing.Protocol` in `src/aeropass/ports/`) via constructor; only `src/aeropass/api/deps.py`
+  instantiates concrete classes (SOLID).
+- Doubles of external services in `src/aeropass/adapters/fakes/` (tests and
+  `AEROPASS_ADAPTERS=fake`). Postgres is always real; `InMemoryUnitOfWork` is only used in service
+  unit tests (plan.md, "Adapter modes").
+- No Postgres transaction stays open during a call to Blob, the biometric provider or QStash.
+- The credential's transition methods return `TransitionResult` and never raise for an invalid
+  transition (data-model.md).
+- Every public method of a service and external adapter carries `@traced("<name>")` from
   `src/aeropass/observability/hooks.py`.
-- Nunca registrar en logs el número de documento completo, scores junto a nombre, ni bytes de
-  imágenes.
+- Never log the full document number, scores alongside a name, or image bytes.
 
 ---
 
@@ -50,7 +48,7 @@ T2, D1, D2, D3, S1 corregidos).
 - [X] T001 Create the package layout from plan.md ("Source Code" tree): `src/aeropass/{domain/credential,ports,services,adapters/{db,blob,redis,qstash,biometrics,resilience,auth,flights,fakes},observability,api/routers,tools}`, `tests/{unit,integration,contract}`, `migrations/versions`, `api/`, each Python package with an empty `__init__.py`
 - [X] T002 Create `pyproject.toml` (uv, `requires-python = ">=3.11"`, src layout, package `aeropass`) with runtime deps `fastapi`, `pydantic>=2`, `pydantic-settings`, `sqlalchemy[asyncio]>=2`, `asyncpg`, `alembic`, `upstash-redis`, `upstash-ratelimit`, `qstash`, `clerk-backend-api`, `PyJWT[crypto]`, `httpx`, `python-multipart`, `uuid-utils` (UUIDv7), `pillow` (only for the mock-image generator) and dev deps `pytest`, `pytest-asyncio` (`asyncio_mode = "auto"`), `jsonschema`, `pyyaml`, `ruff`, `mypy`; configure `[tool.ruff]` (line-length 100) and `[tool.pytest.ini_options]` (`testpaths = ["tests"]`, marker `integration`); run `uv lock`
 - [X] T003 [P] Create Vercel entrypoint `api/index.py` (`from aeropass.main import app`) and `vercel.json` with a rewrite of `/(.*)` to `/api/index`, `functions["api/index.py"]` with `maxDuration: 30` and `excludeFiles: "{tests/**,specs/**,migrations/**}"`, and `regions: ["gru1"]` (co-located with Neon `aws-sa-east-1`, research R12)
-- [X] T004 [P] Create `.env.example` listing every variable in the "Variables de entorno" table of `specs/001-persistencia-registro-qr/quickstart.md` plus `AEROPASS_ADAPTERS=real|fake`, `TEST_DATABASE_URL`, `VISION_PROVIDER_URL`, `VISION_PROVIDER_API_KEY`, `BLOB_TIMEOUT_SECONDS=3`, `BIOMETRIC_TIMEOUT_SECONDS=4`, `QSTASH_TIMEOUT_SECONDS=2`; ensure `.gitignore` ignores `.env*` except `.env.example`
+- [X] T004 [P] Create `.env.example` listing every variable in the "Environment variables" table of `specs/001-persistencia-registro-qr/quickstart.md` plus `AEROPASS_ADAPTERS=real|fake`, `TEST_DATABASE_URL`, `VISION_PROVIDER_URL`, `VISION_PROVIDER_API_KEY`, `BLOB_TIMEOUT_SECONDS=3`, `BIOMETRIC_TIMEOUT_SECONDS=4`, `QSTASH_TIMEOUT_SECONDS=2`; ensure `.gitignore` ignores `.env*` except `.env.example`
 
 ---
 
@@ -61,7 +59,7 @@ T2, D1, D2, D3, S1 corregidos).
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [X] T005 Implement `Settings` (pydantic-settings, reads env) in `src/aeropass/config.py` with all variables from `.env.example`, validators `QR_TTL_SECONDS` in 30–60 (default 45), thresholds in 0–1 (default 0.80), `BIOMETRIC_PROVIDER` in {`mock`,`vision`}, `AEROPASS_ADAPTERS` in {`real`,`fake`}, timeouts (Blob 3 s, biometric 4 s, QStash 2 s); expose cached `get_settings()`
-- [X] T006 [P] Define every enum from data-model.md ("Enumeraciones") as `StrEnum` in `src/aeropass/domain/enums.py` (single source used by domain, ORM and API)
+- [X] T006 [P] Define every enum from data-model.md ("Enumerations") as `StrEnum` in `src/aeropass/domain/enums.py` (single source used by domain, ORM and API)
 - [X] T007 [P] Implement domain error hierarchy in `src/aeropass/domain/errors.py`: base `DomainError(codigo, mensaje, detalles)` and one subclass per `Error.codigo` in `contracts/openapi.yaml` (`DatosInvalidos`, `DocumentoVencido`, `DocumentoYaRegistrado`, `CuentaYaRegistrada`, `PasajeroNoRegistrado`, `EstadoNoPermiteVerificacion`, `ImagenDemasiadoGrande`, `FormatoNoAdmitido`, `AlmacenamientoNoDisponible` (with `retry_after`), `IdentidadNoActiva`, `LimiteEmisionExcedido` (with `retry_after`), `CredencialNoEncontrada`, `NoAutenticado`)
 - [X] T008 [P] Implement `Clock` protocol in `src/aeropass/ports/clock.py` and `SystemClock` (UTC) plus `FakeClock` (settable/advanceable) in `src/aeropass/adapters/clock.py`
 - [X] T009 [P] Implement observability hooks in `src/aeropass/observability/hooks.py`: decorators `@traced(name)` and `@audited(event)` supporting sync/async functions, delegating to a module-level registry of hook callables (`register_span_hook`, `register_audit_hook`) that is empty (no-op) by default — constitution Principle VI
@@ -79,7 +77,7 @@ T2, D1, D2, D3, S1 corregidos).
 - [X] T021 [P] Implement `InMemoryMediaStorage` (stores bytes by pathname, `fail_next_put` / `fail_next_get` switches) in `src/aeropass/adapters/fakes/media_storage.py`
 - [X] T022 [P] Implement mock-image helpers: `make_image(marker: str | None, fmt="JPEG") -> bytes` that produces a small valid image with the ASCII marker `MOCK:<marker>` in a JPEG COM segment / PNG tEXt chunk, in `src/aeropass/adapters/fakes/images.py`, and CLI `python -m aeropass.tools.make_mock_images <dir>` writing `ok.jpg`, `spoof.jpg`, `other.jpg`, `timeout.jpg`, `documento.jpg` in `src/aeropass/tools/make_mock_images.py`
 - [X] T023 Implement app factory `create_app()` and module-level `app` in `src/aeropass/main.py`: registers routers (added per story), maps `DomainError` subclasses to HTTP status per `contracts/openapi.yaml` with body `{codigo, mensaje, detalles}` (adds `Retry-After` when present), maps `RequestValidationError` to 422 `DATOS_INVALIDOS`; add shared `ErrorResponse` model in `src/aeropass/api/schemas.py`
-- [X] T024 Implement composition root in `src/aeropass/api/deps.py` following plan.md "Modos de adaptadores": FastAPI dependencies for settings, clock, current user (Clerk vs `FakeAuth`), `SqlAlchemyUnitOfWork` factory (always real Postgres), breaker state store (Redis vs in-memory), media storage (`VercelBlobStorage` vs `InMemoryMediaStorage` as a process-level singleton in fake mode); this is the ONLY module that imports concrete adapters
+- [X] T024 Implement composition root in `src/aeropass/api/deps.py` following plan.md "Adapter modes": FastAPI dependencies for settings, clock, current user (Clerk vs `FakeAuth`), `SqlAlchemyUnitOfWork` factory (always real Postgres), breaker state store (Redis vs in-memory), media storage (`VercelBlobStorage` vs `InMemoryMediaStorage` as a process-level singleton in fake mode); this is the ONLY module that imports concrete adapters
 - [X] T025 Create test fixtures in `tests/conftest.py`: `db_url` from `TEST_DATABASE_URL` (skip integration tests if absent), session-scoped `alembic upgrade head`, per-test `TRUNCATE … CASCADE`, `app` built with `AEROPASS_ADAPTERS=fake` and dependency overrides exposing the fake instances to tests, `client` (`httpx.AsyncClient` with `ASGITransport`), `auth_headers(user_id)` helper, `fake_clock`, `image(marker)` fixture using `make_image`
 - [X] T026 [P] Create OpenAPI contract helper in `tests/contract/openapi_helper.py`: loads `specs/001-persistencia-registro-qr/contracts/openapi.yaml`, `assert_matches(response, path, method, status)` validating the JSON body with `jsonschema` against the resolved response schema
 - [X] T027 [P] Unit tests in `tests/unit/test_circuit_breaker.py` (opens after 5 failures within 60 s, fails fast while open, HALF_OPEN after 30 s allows one call, closes on success, reopens on failure, timeouts count as failures; uses `FakeClock`) and in `tests/unit/test_images.py` (size limit, declared type vs magic bytes mismatch rejected, JPEG/PNG/WebP accepted)
@@ -88,11 +86,11 @@ T2, D1, D2, D3, S1 corregidos).
 
 ---
 
-## Phase 3: User Story 1 - Registro del documento de identidad (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Identity document registration (Priority: P1) 🎯 MVP
 
-**Goal**: el pasajero autenticado registra los datos y la foto de su documento (foto en el store privado, solo la referencia en Postgres) y queda en `PENDIENTE_VERIFICACION`.
+**Goal**: the authenticated passenger registers their document data and photo (photo in the private store, only the reference in Postgres) and is left in `PENDIENTE_VERIFICACION`.
 
-**Independent Test**: `POST /v1/identity` (multipart con `foto_documento`) con un documento vigente → 201 y `GET /v1/identity/me` devuelve el pasajero en `PENDIENTE_VERIFICACION`; reenvío → 200 mismo id; documento vencido → 422; mismo documento desde otra cuenta → 409 `DOCUMENTO_YA_REGISTRADO`; otro documento desde la misma cuenta → 409 `CUENTA_YA_REGISTRADA`; fallo del store → 503 sin pasajero.
+**Independent Test**: `POST /v1/identity` (multipart with `foto_documento`) with a valid document → 201 and `GET /v1/identity/me` returns the passenger in `PENDIENTE_VERIFICACION`; resubmission → 200 same id; expired document → 422; same document from another account → 409 `DOCUMENTO_YA_REGISTRADO`; another document from the same account → 409 `CUENTA_YA_REGISTRADA`; store failure → 503 with no passenger.
 
 ### Tests for User Story 1 ⚠️
 
@@ -108,7 +106,7 @@ T2, D1, D2, D3, S1 corregidos).
 - [X] T034 [US1] Add `PassengerRepository` protocol (`get_by_clerk_user(id)`, `get_by_document(tipo, numero)`, `get_for_update(id)`, `add(p)`, `save(p)`, `list_by_estado(estado)`) and `UnitOfWork.passengers` in `src/aeropass/ports/repositories.py`
 - [X] T035 [P] [US1] Implement `SqlPassengerRepository` (row↔entity mapping, `get_for_update` uses `with_for_update()`) in `src/aeropass/adapters/db/repositories.py` and expose it on `SqlAlchemyUnitOfWork` in `src/aeropass/adapters/db/unit_of_work.py`
 - [X] T036 [P] [US1] Implement `InMemoryPassengerRepository` and `InMemoryUnitOfWork` (enforcing the same uniqueness constraints; for service unit tests only) in `src/aeropass/adapters/fakes/repositories.py`
-- [X] T037 [US1] Implement `RegistrationService.register(user, datos, foto: ImageInput) -> (Pasajero, created: bool)` and `get_mine(user)` in `src/aeropass/services/registration_service.py` following plan.md "Registro": validate data and photo first; same account + same document → existing (created=False, no upload); document on another account → `DocumentoYaRegistrado`; account already has a different document → `CuentaYaRegistrada`; upload to `documentos/{pasajero_id}/rostro` outside any transaction (`MediaUnavailable` → `AlmacenamientoNoDisponible(retry_after=5)`); then short transaction to insert; DB unique violations mapped to the same domain errors (race safety)
+- [X] T037 [US1] Implement `RegistrationService.register(user, datos, foto: ImageInput) -> (Pasajero, created: bool)` and `get_mine(user)` in `src/aeropass/services/registration_service.py` following plan.md "Registration": validate data and photo first; same account + same document → existing (created=False, no upload); document on another account → `DocumentoYaRegistrado`; account already has a different document → `CuentaYaRegistrada`; upload to `documentos/{pasajero_id}/rostro` outside any transaction (`MediaUnavailable` → `AlmacenamientoNoDisponible(retry_after=5)`); then short transaction to insert; DB unique violations mapped to the same domain errors (race safety)
 - [X] T038 [US1] Add `PasajeroResponse` (masked number, `identidad_id` nullable, always `null` until US3) to `src/aeropass/api/schemas.py`
 - [X] T039 [US1] Implement router `src/aeropass/api/routers/identity.py` (`POST /v1/identity` multipart with form fields + `foto_documento: UploadFile`, rejecting by `Content-Length` > 4.5 MB before reading, → 201/200; `GET /v1/identity/me` → 200/404), add `get_registration_service` to `src/aeropass/api/deps.py` and include the router in `src/aeropass/main.py`
 
@@ -116,11 +114,11 @@ T2, D1, D2, D3, S1 corregidos).
 
 ---
 
-## Phase 4: User Story 2 - Verificación biométrica con selfie (Priority: P1)
+## Phase 4: User Story 2 - Biometric verification with a selfie (Priority: P1)
 
-**Goal**: la selfie se guarda en el store privado; el proveedor evalúa prueba de vida + comparación contra la foto del documento detrás de un circuit breaker; el intento se persiste con ambos scores y la referencia a la imagen; el pasajero cambia de estado. Ninguna transacción queda abierta durante las llamadas externas.
+**Goal**: the selfie is stored in the private store; the provider evaluates liveness + comparison against the document photo behind a circuit breaker; the attempt is persisted with both scores and the image reference; the passenger changes status. No transaction stays open during external calls.
 
-**Independent Test**: con un pasajero `PENDIENTE_VERIFICACION` (vía US1 o fixture), `POST /v1/biometrics/verifications` con la imagen `ok` → `EXITOSO` y pasajero `VERIFICADO`; `spoof` → `FALLIDO/LIVENESS`; tres fallos → `REQUIERE_REVISION_MANUAL`; proveedor caído → `NO_CONCLUYENTE` sin contar intento; fallo de almacenamiento → 503 sin intento.
+**Independent Test**: with a `PENDIENTE_VERIFICACION` passenger (via US1 or a fixture), `POST /v1/biometrics/verifications` with the `ok` image → `EXITOSO` and passenger `VERIFICADO`; `spoof` → `FALLIDO/LIVENESS`; three failures → `REQUIERE_REVISION_MANUAL`; provider down → `NO_CONCLUYENTE` without counting an attempt; storage failure → 503 with no attempt.
 
 ### Tests for User Story 2 ⚠️
 
@@ -134,14 +132,14 @@ T2, D1, D2, D3, S1 corregidos).
 - [X] T044 [P] [US2] Implement `BiometricResult` (score_liveness, score_comparacion, proveedor), `Thresholds`, and pure function `evaluate_outcome(result | None, thresholds) -> (ResultadoIntento, MotivoFallo | None)` in `src/aeropass/domain/verification.py`
 - [X] T045 [US2] Add `Pasajero.assert_can_verify()` and `Pasajero.apply_outcome(resultado)` (rules in T040; max 3 failed attempts as a constant) to `src/aeropass/domain/passenger.py`
 - [X] T046 [P] [US2] Define `BiometricProvider` protocol (`async evaluate(selfie: ImageInput, referencia: ImageInput) -> BiometricResult`) and `ProviderUnavailable` error in `src/aeropass/ports/biometric_provider.py`
-- [X] T047 [P] [US2] Implement `MockBiometricAdapter` in `src/aeropass/adapters/biometrics/mock_adapter.py`: reads the `MOCK:<marker>` from the selfie bytes (no marker → `ok`): `ok` → 0.95/0.93, `spoof` → liveness 0.20 / comparación 0.90, `other` → liveness 0.95 / comparación 0.30, `timeout` → sleeps past the timeout (so the breaker's `wait_for` fires); ignores the reference content but asserts it is non-empty
+- [X] T047 [P] [US2] Implement `MockBiometricAdapter` in `src/aeropass/adapters/biometrics/mock_adapter.py`: reads the `MOCK:<marker>` from the selfie bytes (no marker → `ok`): `ok` → 0.95/0.93, `spoof` → liveness 0.20 / match 0.90, `other` → liveness 0.95 / match 0.30, `timeout` → sleeps past the timeout (so the breaker's `wait_for` fires); ignores the reference content but asserts it is non-empty
 - [X] T048 [P] [US2] Implement `VisionProviderAdapter` (generic HTTP POST multipart with selfie + reference to `VISION_PROVIDER_URL` with API key, translates provider JSON into `BiometricResult`, raises `ProviderUnavailable` on 5xx/malformed body) in `src/aeropass/adapters/biometrics/vision_adapter.py`
 - [X] T049 [US2] Implement `ResilientBiometricProvider` (wraps any `BiometricProvider` with `CircuitBreaker` named `biometric` and `BIOMETRIC_TIMEOUT_SECONDS=4`; returns `None` on `ProviderUnavailable`/`CircuitOpenError`/timeout) and `BiometricProviderFactory.create(settings, breaker_store)` selecting mock/vision in `src/aeropass/adapters/biometrics/factory.py` (depends on T010, T047, T048)
 - [X] T050 [P] [US2] Add `IntentoVerificacionRow` ORM mapping (table `intentos_verificacion`, columns and CHECKs per data-model.md: motivo only when FALLIDO, scores in 0–1) in `src/aeropass/adapters/db/orm.py`
 - [X] T051 [US2] Create migration `migrations/versions/0002_intentos_verificacion.py` (depends on T050)
 - [X] T052 [US2] Add `VerificationAttemptRepository` protocol (`add`, `count_failed(pasajero_id)`) and `UnitOfWork.attempts` in `src/aeropass/ports/repositories.py`; implement SQL version in `src/aeropass/adapters/db/repositories.py` and in-memory version in `src/aeropass/adapters/fakes/repositories.py`
 - [X] T053 [US2] Implement `BiometricVerificationService.record_attempt(uow, pasajero, stored_selfie, result, thresholds) -> IntentoVerificacion` (applies `evaluate_outcome` + `Pasajero.apply_outcome`, no commit) in `src/aeropass/services/biometric_verification_service.py`
-- [X] T054 [US2] Implement `IdentityVerificationFacade.verify_and_create_identity(pasajero: Pasajero, doc: DocumentoRegistrado, selfie: ImageInput) -> VerificationOutcome` (constitution signature) in `src/aeropass/services/identity_verification_facade.py` following plan.md "Verificación de selfie" steps 1–6 (identity creation added in US3): `validate_image`; `pasajero.assert_can_verify()` without lock; `asyncio.gather` of selfie upload to `selfies/{pasajero_id}/{intento_id}` and `MediaStorage.get(doc.foto.pathname)` (`MediaUnavailable` → `AlmacenamientoNoDisponible`); evaluate via resilient provider; then a short transaction that reloads the passenger `FOR UPDATE`, re-checks `assert_can_verify()`, records the attempt and commits
+- [X] T054 [US2] Implement `IdentityVerificationFacade.verify_and_create_identity(pasajero: Pasajero, doc: DocumentoRegistrado, selfie: ImageInput) -> VerificationOutcome` (constitution signature) in `src/aeropass/services/identity_verification_facade.py` following plan.md "Selfie verification" steps 1–6 (identity creation added in US3): `validate_image`; `pasajero.assert_can_verify()` without lock; `asyncio.gather` of selfie upload to `selfies/{pasajero_id}/{intento_id}` and `MediaStorage.get(doc.foto.pathname)` (`MediaUnavailable` → `AlmacenamientoNoDisponible`); evaluate via resilient provider; then a short transaction that reloads the passenger `FOR UPDATE`, re-checks `assert_can_verify()`, records the attempt and commits
 - [X] T055 [US2] Add `ResultadoVerificacionResponse` (with `intentos_restantes`, `reintentar_en_segundos = 30` when NO_CONCLUYENTE, `identidad_id` null) to `src/aeropass/api/schemas.py`
 - [X] T056 [US2] Implement router `src/aeropass/api/routers/biometrics.py` (`POST /v1/biometrics/verifications`, multipart field `selfie`, rejects by `Content-Length` > 4.5 MB before reading; resolves `pasajero` and `doc` for the authenticated user via `RegistrationService.get_mine` → `PasajeroNoRegistrado` if absent), wire provider factory and facade in `src/aeropass/api/deps.py`, include router in `src/aeropass/main.py`
 
@@ -149,11 +147,11 @@ T2, D1, D2, D3, S1 corregidos).
 
 ---
 
-## Phase 5: User Story 3 - Creación de la identidad digital (Priority: P2)
+## Phase 5: User Story 3 - Digital identity creation (Priority: P2)
 
-**Goal**: tras un intento `EXITOSO` se crea una IdentidadDigital `ACTIVA` en la misma transacción y se publica `credencial.emitida` vía outbox + QStash sin bloquear al pasajero ni perder eventos (entrega < 5 min tras la recuperación).
+**Goal**: after an `EXITOSO` attempt an `ACTIVA` IdentidadDigital is created in the same transaction and `credencial.emitida` is published via outbox + QStash without blocking the passenger or losing events (delivery < 5 min after recovery).
 
-**Independent Test**: provocar una verificación exitosa → existe exactamente una identidad `ACTIVA` y un evento en `outbox_eventos` que llega al fake de QStash validando `contracts/events/credencial.emitida.v1.json`; con QStash caído la identidad existe, el evento queda `PENDIENTE` y `POST /internal/outbox/dispatch` lo entrega al recuperarse.
+**Independent Test**: trigger a successful verification → exactly one `ACTIVA` identity exists and one event in `outbox_eventos` reaches the QStash fake, validating against `contracts/events/credencial.emitida.v1.json`; with QStash down the identity exists, the event stays `PENDIENTE` and `POST /internal/outbox/dispatch` delivers it on recovery.
 
 ### Tests for User Story 3 ⚠️
 
@@ -181,11 +179,11 @@ T2, D1, D2, D3, S1 corregidos).
 
 ---
 
-## Phase 6: User Story 4 - Generación del QR dinámico (CredencialAcceso) (Priority: P2)
+## Phase 6: User Story 4 - Dynamic QR generation (CredencialAcceso) (Priority: P2)
 
-**Goal**: un pasajero con identidad activa obtiene una CredencialAcceso firmada (Ed25519) de 30–60 s, construida con Builder, con token de uso único en Redis, historial inmutable (incluidos los rechazos), máquina de estados (State) con RN-06, renovación automática y límite de 30 emisiones/min.
+**Goal**: a passenger with an active identity gets a signed (Ed25519) 30–60 s CredencialAcceso, built with a Builder, with a single-use token in Redis, immutable history (including rejections), a state machine (State) with RN-06, automatic renewal and a limit of 30 issuances/min.
 
-**Independent Test**: con una identidad `ACTIVA` (vía US3 o fixture), `POST /v1/passes {"codigo_vuelo":"AV9380"}` → 201, token verificable con `/.well-known/jwks.json`, `qr:{jti}` = `ACTIVA` con TTL correcto, historial `EMITIDA → ACTIVA`; segunda emisión revoca la primera; vencida → `EXPIRADA`; 31.ª emisión en un minuto → 429; doble consumo → rechazado (RN-06) y registrado.
+**Independent Test**: with an `ACTIVA` identity (via US3 or a fixture), `POST /v1/passes {"codigo_vuelo":"AV9380"}` → 201, token verifiable with `/.well-known/jwks.json`, `qr:{jti}` = `ACTIVA` with the correct TTL, history `EMITIDA → ACTIVA`; a second issuance revokes the first; expired → `EXPIRADA`; 31st issuance within a minute → 429; double consumption → rejected (RN-06) and recorded.
 
 ### Tests for User Story 4 ⚠️
 
@@ -193,7 +191,7 @@ T2, D1, D2, D3, S1 corregidos).
 - [X] T074 [P] [US4] Unit tests in `tests/unit/test_credential_builder.py`: `build()` fails when passenger, identity, flight, permissions, TTL or signer is missing, TTL outside 30–60, or flight code does not match `^[A-Z0-9]{2}[0-9]{1,4}[A-Z]?$`; default permissions `["embarque"]`; built credential is `EMITIDA` with `expira_at = emitida_at + ttl`
 - [X] T075 [P] [US4] Unit tests in `tests/unit/test_signing.py`: signed token verifies with the JWKS public key, carries claims `jti, sub, flt, perms, iat, exp` and header `kid`, fails verification when tampered or expired
 - [X] T076 [P] [US4] Contract tests in `tests/contract/test_passes_contract.py` for `POST /v1/passes` (201, 403, 422, 429), `GET /v1/passes/{id}` (200, 404) and `GET /.well-known/jwks.json` (200)
-- [X] T077 [P] [US4] Integration tests in `tests/integration/test_pass_issuance.py` for spec US4 scenarios 1–6 and edge case "documento vence entre registro y pase" → 403 `DOCUMENTO_VENCIDO` (uses `FakeClock` to advance time for expiry); on renewal assert the previous `qr:{jti}` is deleted only after the new credential is committed
+- [X] T077 [P] [US4] Integration tests in `tests/integration/test_pass_issuance.py` for spec US4 scenarios 1–6 and edge case "document expires between registration and pass" → 403 `DOCUMENTO_VENCIDO` (uses `FakeClock` to advance time for expiry); on renewal assert the previous `qr:{jti}` is deleted only after the new credential is committed
 - [X] T078 [P] [US4] Integration test in `tests/integration/test_concurrent_passes.py`: 2 simultaneous `POST /v1/passes` for the same passenger and flight → exactly one `ACTIVA`, the other `REVOCADA`; partial unique index never violated in the final state
 - [X] T079 [P] [US4] Integration test in `tests/integration/test_concurrent_consume.py` (SC-004): 50 concurrent `CredentialLifecycleService.consume(jti)` calls → exactly one `CONSUMIDA`, 49 `YA_CONSUMIDA`, 50 transition rows persisted (1 accepted, 49 rejected)
 - [X] T080 [P] [US4] Integration test in `tests/integration/test_transitions_immutable.py`: raw SQL `UPDATE` and `DELETE` on `transiciones_credencial` raise an error
@@ -215,7 +213,7 @@ T2, D1, D2, D3, S1 corregidos).
 - [X] T093 [US4] Create migration `migrations/versions/0004_credenciales.py` with both tables, indexes, CHECKs and a `BEFORE UPDATE OR DELETE` trigger on `transiciones_credencial` raising an exception (depends on T092)
 - [X] T094 [US4] Add `CredentialRepository` protocol (`add`, `get(id)`, `get_for_owner(id, pasajero_id)`, `get_live_for_update(pasajero_id, codigo_vuelo)`, `save(c)` persisting `pending_transitions`, `conditional_consume(id) -> bool` using `UPDATE … WHERE estado='ACTIVA'`, `expired_live(now, limit)`) and `UnitOfWork.credentials` in `src/aeropass/ports/repositories.py`; implement SQL version in `src/aeropass/adapters/db/repositories.py` and in-memory version in `src/aeropass/adapters/fakes/repositories.py`
 - [X] T095 [US4] Implement `CredentialLifecycleService` in `src/aeropass/services/credential_lifecycle_service.py`: `refresh_expiry(uow, c)` (lazy expiry), `revoke(uow, c, motivo) -> TransitionResult` (Redis `TokenStore.revoke` is returned as a post-commit action, never called inside the transaction), `consume(jti, actor) -> ConsumeResult` (`CONSUMIDA | YA_CONSUMIDA | EXPIRADA | REVOCADA | NO_ENCONTRADA`; DB conditional update + `TokenStore.consume`; **always commits** so rejected transitions persist; docstring maps each result to the `motivo` enum of `contracts/events/validacion.fallida.v1.json`), `sweep_expired(limit=500) -> int`
-- [X] T096 [US4] Implement `PassIssuanceService.issue(user, codigo_vuelo) -> IssuedPass` in `src/aeropass/services/pass_issuance_service.py` following plan.md "Emisión de pase" steps 1–8: rate limit → `LimiteEmisionExcedido(retry_after)`; lock passenger; require ACTIVE identity (`IdentidadNoActiva`) and valid document (`DocumentoVencido`); `FlightCatalog.validate`; revoke live credential for same flight in Postgres (motivo `RENOVACION`); build with `CredencialAccesoBuilder`; persist `EMITIDA`; `TokenStore.register`; `activar()`; commit; **after commit** `TokenStore.revoke(previous_jti)` (errors logged, not raised); on token-store register failure mark `REVOCADA`, commit and raise `AlmacenamientoNoDisponible`; return token and `renovar_en_segundos = ttl - 5`
+- [X] T096 [US4] Implement `PassIssuanceService.issue(user, codigo_vuelo) -> IssuedPass` in `src/aeropass/services/pass_issuance_service.py` following plan.md "Pass issuance" steps 1–8: rate limit → `LimiteEmisionExcedido(retry_after)`; lock passenger; require ACTIVE identity (`IdentidadNoActiva`) and valid document (`DocumentoVencido`); `FlightCatalog.validate`; revoke live credential for same flight in Postgres (motivo `RENOVACION`); build with `CredencialAccesoBuilder`; persist `EMITIDA`; `TokenStore.register`; `activar()`; commit; **after commit** `TokenStore.revoke(previous_jti)` (errors logged, not raised); on token-store register failure mark `REVOCADA`, commit and raise `AlmacenamientoNoDisponible`; return token and `renovar_en_segundos = ttl - 5`
 - [X] T097 [US4] Add `EmitirPaseRequest`, `PaseResponse`, `DetallePaseResponse` to `src/aeropass/api/schemas.py`
 - [X] T098 [US4] Implement router `src/aeropass/api/routers/passes.py` (`POST /v1/passes` → 201, `GET /v1/passes/{credencial_id}` applying lazy expiry, 404 when not owned) and `src/aeropass/api/routers/wellknown.py` (`GET /.well-known/jwks.json`, public, `Cache-Control: public, max-age=300`); wire signer, token store, proxy, rate limiter, flight catalog and services in `src/aeropass/api/deps.py`; include routers in `src/aeropass/main.py`
 - [X] T099 [US4] Extend `POST /internal/outbox/dispatch` in `src/aeropass/api/routers/internal.py` to call `CredentialLifecycleService.sweep_expired()` and report `credenciales_expiradas`
@@ -234,7 +232,7 @@ T2, D1, D2, D3, S1 corregidos).
 - [X] T103 [P] Add PII guard unit test in `tests/unit/test_no_pii_in_logs.py`: run registration and verification with `caplog` and assert neither the full document number nor image bytes (selfie or document photo) appear in logs
 - [X] T104 Run `uv run ruff check`, `uv run ruff format --check` and `uv run mypy src` and fix all findings across `src/aeropass/`
 - [X] T105 Verify constitution compliance: no module outside `src/aeropass/api/deps.py` and `src/aeropass/adapters/` imports concrete adapters; every biometric-provider and QStash call goes through `CircuitBreaker`; the Facade signature is `verify_and_create_identity(pasajero, doc, selfie)`; both event schemas exist in `contracts/events/`; no transaction spans an external call; fix violations
-- [ ] T106 Run the full `specs/001-persistencia-registro-qr/quickstart.md` validation (automated tests, manual walkthrough steps 1–8 with `AEROPASS_ADAPTERS=fake`, and the "Validación en Vercel" section including `bench_passes` on a preview deployment) and record results in `specs/001-persistencia-registro-qr/checklists/quickstart-run.md`
+- [ ] T106 Run the full `specs/001-persistencia-registro-qr/quickstart.md` validation (automated tests, manual walkthrough steps 1–8 with `AEROPASS_ADAPTERS=fake`, and the "Validation on Vercel" section including `bench_passes` on a preview deployment) and record results in `specs/001-persistencia-registro-qr/checklists/quickstart-run.md`
 
 ---
 
@@ -307,14 +305,14 @@ Task: "FormatOnlyFlightCatalog in src/aeropass/adapters/flights/format_only_cata
 ### Incremental Delivery
 
 1. Setup + Foundational → foundation ready
-2. + US1 → registro con foto del documento (MVP)
-3. + US2 → verificación biométrica con prueba de vida y circuit breaker
-4. + US3 → identidad digital y evento `credencial.emitida` (primer punto de integración con otros equipos)
-5. + US4 → QR dinámico; habilita al equipo del checkpoint (`consume()`, JWKS, `validacion.fallida` v1)
+2. + US1 → registration with the document photo (MVP)
+3. + US2 → biometric verification with liveness and circuit breaker
+4. + US3 → digital identity and `credencial.emitida` event (first integration point with other teams)
+5. + US4 → dynamic QR; unblocks the checkpoint team (`consume()`, JWKS, `validacion.fallida` v1)
 
 ### Parallel Team Strategy
 
-- Developer A: US1 → US2 → US3 (flujo del pasajero)
+- Developer A: US1 → US2 → US3 (passenger flow)
 - Developer B (after Foundational): US4 domain (T073–T075, T082–T086) and Redis adapters (T087–T091); joins US4 services once US3 migrations land
 
 ---

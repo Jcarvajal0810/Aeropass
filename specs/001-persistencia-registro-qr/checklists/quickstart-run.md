@@ -1,50 +1,50 @@
 # Quickstart Run: 001-persistencia-registro-qr
 
-**Fecha**: 2026-09-23
-**Entorno**: Windows 11, Python 3.12.14 (uv), PostgreSQL 16.2 embebido (`pgserver`),
-`AEROPASS_ADAPTERS=fake`, `BIOMETRIC_PROVIDER=mock`, clave Ed25519 generada con `gen_signing_key`.
+**Date**: 2026-09-23
+**Environment**: Windows 11, Python 3.12.14 (uv), embedded PostgreSQL 16.2 (`pgserver`),
+`AEROPASS_ADAPTERS=fake`, `BIOMETRIC_PROVIDER=mock`, Ed25519 key generated with `gen_signing_key`.
 
-## Pruebas automáticas
+## Automated tests
 
-- [x] `uv run pytest`: **163 passed**, 0 fallidas y 0 omitidas. Incluye unitarias, de contrato y de
-  integración contra Postgres real.
-- [x] `uv run ruff check .`, `uv run ruff format --check .` y `uv run mypy`: sin hallazgos.
+- [x] `uv run pytest`: **163 passed**, 0 failed and 0 skipped. Includes unit, contract and
+  integration tests against real Postgres.
+- [x] `uv run ruff check .`, `uv run ruff format --check .` and `uv run mypy`: no findings.
 
-Pruebas clave del quickstart:
+Key quickstart tests:
 
-| Prueba | Resultado |
+| Test | Result |
 |---|---|
-| `test_credential_states.py` (tabla completa, RN-06) | ✅ |
+| `test_credential_states.py` (full table, RN-06) | ✅ |
 | `test_credential_builder.py` | ✅ |
-| `test_concurrent_consume.py` (50 consumos → 1 aceptado; SC-004) | ✅ |
+| `test_concurrent_consume.py` (50 consumptions → 1 accepted; SC-004) | ✅ |
 | `test_concurrent_passes.py` | ✅ |
-| `test_outbox_recovery.py` (30 min de caída simulada → entrega < 4 min; SC-006) | ✅ |
+| `test_outbox_recovery.py` (30 min simulated outage → delivery < 4 min; SC-006) | ✅ |
 | `test_rejected_transition_persisted.py` (FR-019) | ✅ |
 | `test_circuit_breaker.py` + `test_biometric_circuit_breaker.py` | ✅ |
 | `test_transitions_immutable.py` | ✅ |
 
-## Recorrido manual (uvicorn en `:8765`, pasos 1–8)
+## Manual walkthrough (uvicorn on `:8765`, steps 1–8)
 
-El recorrido pasó completo: **16/16 verificaciones OK**.
+The walkthrough passed in full: **16/16 checks OK**.
 
-| Paso | Resultado |
+| Step | Result |
 |---|---|
-| 1. Registro | 201 `PENDIENTE_VERIFICACION`; `pasajeros` guarda solo `documentos/{id}/rostro-….jpg`; el reenvío devuelve 200 con el mismo id; vencido → 422; sin foto → 422 |
-| 2. Selfie `spoof` | `FALLIDO` / `LIVENESS`, restan 2 |
-| 3. Proveedor caído | 5 × `NO_CONCLUYENTE` sin consumir intentos; el 6.º responde en **0,118 s** porque el circuito está abierto |
-| 4. Selfie `ok` (tras 31 s) | `EXITOSO` y `VERIFICADO` con `identidad_id`; evento `credencial.emitida` `ENTREGADO`; el intento guarda solo `selfies/{id}/{intento}-….jpg` |
-| 5. Pase | 201; JWS EdDSA verificado con `/.well-known/jwks.json` (kid `qr-dev`); TTL 45 s; historial `EMITIDA → ACTIVA` |
-| 6. Renovación | Pase anterior `REVOCADA` con motivo `RENOVACION` |
-| 7. Expiración (46 s) | `EXPIRADA` |
-| 8. Límite | 429 `LIMITE_EMISION_EXCEDIDO` con `Retry-After: 11`. Hubo 28 × 201, porque las 2 emisiones anteriores seguían dentro de la ventana de 60 s |
+| 1. Registration | 201 `PENDIENTE_VERIFICACION`; `pasajeros` stores only `documentos/{id}/rostro-….jpg`; resubmission returns 200 with the same id; expired → 422; no photo → 422 |
+| 2. `spoof` selfie | `FALLIDO` / `LIVENESS`, 2 remaining |
+| 3. Provider down | 5 × `NO_CONCLUYENTE` without consuming attempts; the 6th responds in **0.118 s** because the circuit is open |
+| 4. `ok` selfie (after 31 s) | `EXITOSO` and `VERIFICADO` with `identidad_id`; `credencial.emitida` event `ENTREGADO`; the attempt stores only `selfies/{id}/{intento}-….jpg` |
+| 5. Pass | 201; EdDSA JWS verified with `/.well-known/jwks.json` (kid `qr-dev`); TTL 45 s; history `EMITIDA → ACTIVA` |
+| 6. Renewal | Previous pass `REVOCADA` with reason `RENOVACION` |
+| 7. Expiration (46 s) | `EXPIRADA` |
+| 8. Limit | 429 `LIMITE_EMISION_EXCEDIDO` with `Retry-After: 11`. There were 28 × 201, because the 2 earlier issuances were still inside the 60 s window |
 
-## Validación en Vercel — PENDIENTE
+## Validation on Vercel — PENDING
 
-- [ ] Despliegue de preview con servicios reales (Neon, Blob privado, Upstash Redis, QStash y Clerk).
-- [ ] Schedule de QStash (`setup_qstash_schedule`).
-- [ ] Pasos 1–6 con token real de Clerk.
-- [ ] URL del blob sin token → 401/403 (FR-010).
+- [ ] Preview deployment with real services (Neon, private Blob, Upstash Redis, QStash and Clerk).
+- [ ] QStash schedule (`setup_qstash_schedule`).
+- [ ] Steps 1–6 with a real Clerk token.
+- [ ] Blob URL without token → 401/403 (FR-010).
 - [ ] `bench_passes`: p95 < 1 s (SC-002).
 
-**Motivo**: requiere desplegar a Vercel y aprovisionar servicios externos con credenciales del
-equipo. No se ejecutó sin autorización explícita.
+**Reason**: requires deploying to Vercel and provisioning external services with the team's
+credentials. It was not run without explicit authorization.

@@ -1,4 +1,4 @@
-"""US2 — el circuito abierto responde NO_CONCLUYENTE al instante (FR-009, SC-007)."""
+"""US2 — an open circuit answers NO_CONCLUYENTE instantly (FR-009, SC-007)."""
 
 import time
 

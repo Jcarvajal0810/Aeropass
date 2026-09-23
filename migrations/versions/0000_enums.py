@@ -1,4 +1,4 @@
-"""PostgreSQL enum types (data-model.md, "Enumeraciones").
+"""PostgreSQL enum types (data-model.md, "Enumerations").
 
 Values are frozen here on purpose: later enum changes need their own migration.
 

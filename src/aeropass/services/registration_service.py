@@ -1,4 +1,4 @@
-"""US1 — Registro del documento (plan.md, flujo "Registro")."""
+"""US1 — Document registration (plan.md, "Registration" flow)."""
 
 from __future__ import annotations
 

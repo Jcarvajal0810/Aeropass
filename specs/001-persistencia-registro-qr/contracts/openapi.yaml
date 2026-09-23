@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
-  title: AeroPass Backend — Registro, biometría y pases
+  title: AeroPass Backend — Registration, biometrics and passes
   version: 1.0.0
   description: >
-    Endpoints de la feature 001-persistencia-registro-qr. Todas las rutas /v1 exigen un
-    session token de Clerk en `Authorization: Bearer <token>` y solo operan sobre el pasajero
-    de la cuenta autenticada (FR-022). Los errores usan el formato `Error`.
+    Endpoints of feature 001-persistencia-registro-qr. Every /v1 route requires a Clerk
+    session token in `Authorization: Bearer <token>` and only operates on the passenger of the
+    authenticated account (FR-022). Errors use the `Error` format.
 servers:
   - url: https://{deployment}.vercel.app
     variables:
@@ -19,11 +19,11 @@ paths:
   /v1/identity:
     post:
       operationId: registrarDocumento
-      summary: Registra los datos leídos del documento y la foto del rostro del documento (Historia 1)
+      summary: Registers the data read from the document and the face photo from the document (Story 1)
       description: >
-        La foto se guarda en el store privado de medios (FR-001a) y es la referencia para la
-        comparación biométrica. En un reenvío idéntico desde la misma cuenta (200) la foto nueva
-        se ignora.
+        The photo is stored in the private media store (FR-001a) and is the reference for the
+        biometric comparison. On an identical resubmission from the same account (200) the new
+        photo is ignored.
       requestBody:
         required: true
         content:
@@ -34,39 +34,39 @@ paths:
                 contentType: image/jpeg, image/png, image/webp
       responses:
         '201':
-          description: Pasajero creado en PENDIENTE_VERIFICACION
+          description: Passenger created in PENDIENTE_VERIFICACION
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Pasajero' }
         '200':
-          description: Reenvío desde la misma cuenta; se devuelve el pasajero existente sin duplicar
+          description: Resubmission from the same account; the existing passenger is returned without duplicating it
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Pasajero' }
         '409':
           description: >
-            Documento ya registrado por otra cuenta (`DOCUMENTO_YA_REGISTRADO`) o la cuenta ya
-            registró un documento distinto (`CUENTA_YA_REGISTRADA`)
+            Document already registered by another account (`DOCUMENTO_YA_REGISTRADO`) or the
+            account already registered a different document (`CUENTA_YA_REGISTRADA`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '413':
-          description: Foto mayor a 4 MB (`IMAGEN_DEMASIADO_GRANDE`)
+          description: Photo larger than 4 MB (`IMAGEN_DEMASIADO_GRANDE`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '415':
-          description: Formato de foto no admitido (`FORMATO_NO_ADMITIDO`)
+          description: Unsupported photo format (`FORMATO_NO_ADMITIDO`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '422':
-          description: Campos faltantes o inválidos (`DATOS_INVALIDOS`) o documento vencido (`DOCUMENTO_VENCIDO`)
+          description: Missing or invalid fields (`DATOS_INVALIDOS`) or expired document (`DOCUMENTO_VENCIDO`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '503':
-          description: No se pudo almacenar la foto; no se persistió el pasajero (`ALMACENAMIENTO_NO_DISPONIBLE`)
+          description: The photo could not be stored; the passenger was not persisted (`ALMACENAMIENTO_NO_DISPONIBLE`)
           headers:
             Retry-After: { schema: { type: integer } }
           content:
@@ -77,7 +77,7 @@ paths:
   /v1/identity/me:
     get:
       operationId: obtenerMiPasajero
-      summary: Estado actual del pasajero autenticado
+      summary: Current status of the authenticated passenger
       responses:
         '200':
           content:
@@ -85,7 +85,7 @@ paths:
               schema: { $ref: '#/components/schemas/Pasajero' }
           description: OK
         '404':
-          description: La cuenta aún no registró su documento (`PASAJERO_NO_REGISTRADO`)
+          description: The account has not registered its document yet (`PASAJERO_NO_REGISTRADO`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -94,12 +94,12 @@ paths:
   /v1/biometrics/verifications:
     post:
       operationId: verificarSelfie
-      summary: Sube una selfie y evalúa prueba de vida + comparación (Historias 2 y 3)
+      summary: Uploads a selfie and evaluates liveness + face match (Stories 2 and 3)
       description: >
-        La imagen se guarda en un store privado; solo se persiste su referencia. Si el
-        resultado es EXITOSO se crea la IdentidadDigital y se encola `credencial.emitida`
-        sin esperar su entrega. Si el proveedor falla o su circuit breaker está abierto,
-        responde 200 con resultado NO_CONCLUYENTE (no cuenta como fallo).
+        The image is stored in a private store; only its reference is persisted. If the
+        result is EXITOSO the IdentidadDigital is created and `credencial.emitida` is enqueued
+        without waiting for its delivery. If the provider fails or its circuit breaker is open,
+        it responds 200 with result NO_CONCLUYENTE (does not count as a failure).
       requestBody:
         required: true
         content:
@@ -111,38 +111,38 @@ paths:
                 selfie:
                   type: string
                   format: binary
-                  description: JPEG, PNG o WebP, máximo 4 MB
+                  description: JPEG, PNG or WebP, max 4 MB
             encoding:
               selfie:
                 contentType: image/jpeg, image/png, image/webp
       responses:
         '200':
-          description: Intento registrado (EXITOSO, FALLIDO o NO_CONCLUYENTE)
+          description: Attempt recorded (EXITOSO, FALLIDO or NO_CONCLUYENTE)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ResultadoVerificacion' }
         '404':
-          description: La cuenta no tiene pasajero registrado (`PASAJERO_NO_REGISTRADO`)
+          description: The account has no registered passenger (`PASAJERO_NO_REGISTRADO`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: El pasajero ya está VERIFICADO o en REQUIERE_REVISION_MANUAL (`ESTADO_NO_PERMITE_VERIFICACION`)
+          description: The passenger is already VERIFICADO or in REQUIERE_REVISION_MANUAL (`ESTADO_NO_PERMITE_VERIFICACION`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '413':
-          description: Imagen mayor a 4 MB (`IMAGEN_DEMASIADO_GRANDE`)
+          description: Image larger than 4 MB (`IMAGEN_DEMASIADO_GRANDE`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '415':
-          description: Formato no admitido (`FORMATO_NO_ADMITIDO`)
+          description: Unsupported format (`FORMATO_NO_ADMITIDO`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '503':
-          description: No se pudo almacenar la imagen; no se evaluó ni se registró intento (`ALMACENAMIENTO_NO_DISPONIBLE`)
+          description: The image could not be stored; nothing was evaluated and no attempt was recorded (`ALMACENAMIENTO_NO_DISPONIBLE`)
           headers:
             Retry-After: { schema: { type: integer } }
           content:
@@ -153,11 +153,11 @@ paths:
   /v1/passes:
     post:
       operationId: emitirPase
-      summary: Emite (o renueva) la CredencialAcceso QR para un vuelo (Historia 4)
+      summary: Issues (or renews) the QR CredencialAcceso for a flight (Story 4)
       description: >
-        Si ya existe una credencial EMITIDA/ACTIVA para el mismo pasajero y vuelo, se revoca
-        (motivo RENOVACION) en la misma operación. La app debe llamar de nuevo a los
-        `renovar_en_segundos` para mostrar siempre un QR vigente.
+        If an EMITIDA/ACTIVA credential already exists for the same passenger and flight, it is
+        revoked (reason RENOVACION) in the same operation. The app must call again after
+        `renovar_en_segundos` to always show a valid QR.
       requestBody:
         required: true
         content:
@@ -165,24 +165,24 @@ paths:
             schema: { $ref: '#/components/schemas/EmitirPaseRequest' }
       responses:
         '201':
-          description: Credencial ACTIVA emitida
+          description: ACTIVA credential issued
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Pase' }
         '403':
           description: >
-            Sin IdentidadDigital ACTIVA (`IDENTIDAD_NO_ACTIVA`) o documento vencido
+            No ACTIVA IdentidadDigital (`IDENTIDAD_NO_ACTIVA`) or expired document
             (`DOCUMENTO_VENCIDO`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '422':
-          description: Código de vuelo con formato inválido (`DATOS_INVALIDOS`)
+          description: Flight code with invalid format (`DATOS_INVALIDOS`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: Más de 30 emisiones en el último minuto (`LIMITE_EMISION_EXCEDIDO`)
+          description: More than 30 issuances in the last minute (`LIMITE_EMISION_EXCEDIDO`)
           headers:
             Retry-After: { schema: { type: integer } }
           content:
@@ -193,7 +193,7 @@ paths:
   /v1/passes/{credencialId}:
     get:
       operationId: obtenerPase
-      summary: Estado actual e historial de una credencial del pasajero autenticado
+      summary: Current status and history of a credential of the authenticated passenger
       parameters:
         - name: credencialId
           in: path
@@ -201,12 +201,12 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         '200':
-          description: OK (aplica expiración perezosa antes de responder)
+          description: OK (applies lazy expiration before responding)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DetallePase' }
         '404':
-          description: No existe o no pertenece al pasajero (`CREDENCIAL_NO_ENCONTRADA`)
+          description: Does not exist or does not belong to the passenger (`CREDENCIAL_NO_ENCONTRADA`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -215,7 +215,7 @@ paths:
   /.well-known/jwks.json:
     get:
       operationId: clavesPublicasQr
-      summary: Claves públicas Ed25519 para verificar la firma del QR (punto de extensión del checkpoint)
+      summary: Ed25519 public keys to verify the QR signature (checkpoint extension point)
       security: []
       responses:
         '200':
@@ -242,12 +242,12 @@ paths:
   /internal/outbox/dispatch:
     post:
       operationId: despacharOutbox
-      summary: Reintenta eventos pendientes y marca credenciales expiradas (invocado por schedule de QStash)
+      summary: Retries pending events and marks expired credentials (invoked by a QStash schedule)
       security:
         - qstashSignature: []
       responses:
         '200':
-          description: Resumen del ciclo
+          description: Cycle summary
           content:
             application/json:
               schema:
@@ -258,7 +258,7 @@ paths:
                   eventos_pendientes: { type: integer }
                   credenciales_expiradas: { type: integer }
         '401':
-          description: Firma de QStash ausente o inválida
+          description: Missing or invalid QStash signature
 
 components:
   securitySchemes:
@@ -266,7 +266,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Session token emitido por Clerk
+      description: Session token issued by Clerk
     qstashSignature:
       type: apiKey
       in: header
@@ -274,7 +274,7 @@ components:
 
   responses:
     NoAutenticado:
-      description: Token ausente, inválido o expirado (`NO_AUTENTICADO`)
+      description: Missing, invalid or expired token (`NO_AUTENTICADO`)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -304,7 +304,7 @@ components:
         detalles:
           type: object
           additionalProperties: true
-          description: p. ej. lista de campos faltantes
+          description: e.g. list of missing fields
 
     RegistroDocumentoRequest:
       type: object
@@ -317,7 +317,7 @@ components:
         foto_documento:
           type: string
           format: binary
-          description: Rostro recortado del documento; JPEG, PNG o WebP, máximo 4 MB
+          description: Face cropped from the document; JPEG, PNG or WebP, max 4 MB
 
     Pasajero:
       type: object
@@ -328,7 +328,7 @@ components:
         tipo_documento: { type: string, enum: [CC, CE, PASAPORTE] }
         numero_documento_enmascarado:
           type: string
-          description: Solo los últimos 4 dígitos visibles, p. ej. "******4321"
+          description: Only the last 4 digits visible, e.g. "******4321"
         fecha_vencimiento: { type: string, format: date }
         estado: { type: string, enum: [PENDIENTE_VERIFICACION, VERIFICADO, REQUIERE_REVISION_MANUAL] }
         intentos_fallidos: { type: integer, minimum: 0, maximum: 3 }
@@ -352,10 +352,10 @@ components:
         identidad_id:
           type: [string, 'null']
           format: uuid
-          description: Presente solo si el resultado es EXITOSO
+          description: Present only if the result is EXITOSO
         reintentar_en_segundos:
           type: [integer, 'null']
-          description: Presente solo si el resultado es NO_CONCLUYENTE
+          description: Present only if the result is NO_CONCLUYENTE
 
     EmitirPaseRequest:
       type: object
@@ -373,7 +373,7 @@ components:
         credencial_id: { type: string, format: uuid }
         token:
           type: string
-          description: JWS compacto EdDSA (claims jti, sub, flt, perms, iat, exp; header kid). Contenido del QR.
+          description: Compact EdDSA JWS (claims jti, sub, flt, perms, iat, exp; header kid). QR content.
         codigo_vuelo: { type: string }
         permisos:
           type: array
@@ -384,7 +384,7 @@ components:
         expira_at: { type: string, format: date-time }
         renovar_en_segundos:
           type: integer
-          description: Segundos tras los cuales la app debe pedir la renovación (vida del QR menos 5 s)
+          description: Seconds after which the app must request renewal (QR lifetime minus 5 s)
 
     DetallePase:
       type: object

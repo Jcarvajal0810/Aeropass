@@ -1,4 +1,4 @@
-"""US1 — Registro del documento de identidad (spec.md, scenarios 1–5 + edge cases)."""
+"""US1 — Identity document registration (spec.md, scenarios 1–5 + edge cases)."""
 
 import pytest
 from sqlalchemy import text

@@ -1,21 +1,21 @@
-# Data Model: Persistencia del flujo de registro, verificación biométrica y QR
+# Data Model: Persistence of the registration, biometric verification and QR flow
 
 **Feature**: `001-persistencia-registro-qr` | **Date**: 2026-09-23
 
-Tres almacenes, cada uno con una responsabilidad:
+Three stores, each with one responsibility:
 
-| Almacén | Qué guarda | Qué NO guarda |
+| Store | What it stores | What it does NOT store |
 |---|---|---|
-| Neon Postgres | Pasajeros, intentos, identidades, credenciales, historial, outbox | Imágenes, estado efímero del QR |
-| Vercel Blob (privado) | Bytes de las selfies | Metadatos de negocio |
-| Upstash Redis | Token de uso único del QR, límite de emisión, estado del circuit breaker | Nada que no pueda reconstruirse o expirar |
+| Neon Postgres | Passengers, attempts, identities, credentials, history, outbox | Images, ephemeral QR state |
+| Vercel Blob (private) | Selfie bytes | Business metadata |
+| Upstash Redis | QR single-use token, issuance limit, circuit breaker state | Anything that cannot be rebuilt or expire |
 
-Todas las tablas usan `created_at` / `updated_at` `timestamptz` en UTC. Los identificadores son
-`uuid` (v7 generados en la aplicación, ordenables por tiempo) salvo que se indique otra cosa.
+All tables use `created_at` / `updated_at` `timestamptz` in UTC. Identifiers are `uuid` (v7
+generated in the application, time-sortable) unless stated otherwise.
 
-## Enumeraciones (tipos `enum` de Postgres, fuente única en `domain/`)
+## Enumerations (Postgres `enum` types, single source in `domain/`)
 
-| Enum | Valores |
+| Enum | Values |
 |---|---|
 | `tipo_documento` | `CC`, `CE`, `PASAPORTE` |
 | `estado_pasajero` | `PENDIENTE_VERIFICACION`, `VERIFICADO`, `REQUIERE_REVISION_MANUAL` |
@@ -29,58 +29,58 @@ Todas las tablas usan `created_at` / `updated_at` `timestamptz` en UTC. Los iden
 
 ### `pasajeros`
 
-| Campo | Tipo | Reglas |
+| Field | Type | Rules |
 |---|---|---|
 | `id` | uuid PK | |
-| `clerk_user_id` | text | NOT NULL, UNIQUE (una cuenta ↔ un pasajero) |
-| `nombre_completo` | text | NOT NULL, 2–200 caracteres |
+| `clerk_user_id` | text | NOT NULL, UNIQUE (one account ↔ one passenger) |
+| `nombre_completo` | text | NOT NULL, 2–200 characters |
 | `tipo_documento` | `tipo_documento` | NOT NULL |
-| `numero_documento` | text | NOT NULL, 4–20 caracteres alfanuméricos, normalizado a mayúsculas sin separadores |
-| `fecha_vencimiento_documento` | date | NOT NULL, debe ser ≥ hoy al registrar (FR-003) |
-| `foto_documento_blob_pathname` | text | NOT NULL; referencia privada a la foto del rostro del documento (FR-001a) |
-| `foto_documento_blob_url` | text | NOT NULL; URL privada, nunca el contenido |
+| `numero_documento` | text | NOT NULL, 4–20 alphanumeric characters, normalized to uppercase without separators |
+| `fecha_vencimiento_documento` | date | NOT NULL, must be ≥ today at registration (FR-003) |
+| `foto_documento_blob_pathname` | text | NOT NULL; private reference to the document's face photo (FR-001a) |
+| `foto_documento_blob_url` | text | NOT NULL; private URL, never the content |
 | `estado` | `estado_pasajero` | NOT NULL, default `PENDIENTE_VERIFICACION` (FR-002) |
 | `intentos_fallidos` | smallint | NOT NULL, default 0, CHECK 0–3 |
 | `created_at`, `updated_at` | timestamptz | |
 
 - `UNIQUE (tipo_documento, numero_documento)` (FR-004).
 
-**Transiciones del pasajero**:
+**Passenger transitions**:
 
 ```text
-PENDIENTE_VERIFICACION ──intento EXITOSO──────────────▶ VERIFICADO
-PENDIENTE_VERIFICACION ──3er intento FALLIDO──────────▶ REQUIERE_REVISION_MANUAL
+PENDIENTE_VERIFICACION ──EXITOSO attempt──────────────▶ VERIFICADO
+PENDIENTE_VERIFICACION ──3rd FALLIDO attempt──────────▶ REQUIERE_REVISION_MANUAL
 PENDIENTE_VERIFICACION ──FALLIDO (<3) / NO_CONCLUYENTE─▶ PENDIENTE_VERIFICACION
 ```
 
-`VERIFICADO` y `REQUIERE_REVISION_MANUAL` no aceptan nuevas selfies en este alcance. La salida de
-`REQUIERE_REVISION_MANUAL` la definirá el módulo de la consola del agente (fuera de alcance).
+`VERIFICADO` and `REQUIERE_REVISION_MANUAL` do not accept new selfies in this scope. The exit from
+`REQUIERE_REVISION_MANUAL` will be defined by the agent console module (out of scope).
 
 ### `intentos_verificacion`
 
-| Campo | Tipo | Reglas |
+| Field | Type | Rules |
 |---|---|---|
 | `id` | uuid PK | |
-| `pasajero_id` | uuid FK → `pasajeros.id` | NOT NULL, índice |
-| `selfie_blob_pathname` | text | NULL solo si la imagen ya se eliminó por retención |
-| `selfie_blob_url` | text | URL privada del blob, nunca el contenido (FR-005) |
+| `pasajero_id` | uuid FK → `pasajeros.id` | NOT NULL, index |
+| `selfie_blob_pathname` | text | NULL only if the image was already deleted by retention |
+| `selfie_blob_url` | text | Private blob URL, never the content (FR-005) |
 | `resultado` | `resultado_intento` | NOT NULL |
-| `motivo_fallo` | `motivo_fallo` | NULL salvo cuando `resultado = FALLIDO` (CHECK) |
-| `score_liveness` | numeric(4,3) | NULL si `NO_CONCLUYENTE`; CHECK 0–1 |
-| `score_comparacion` | numeric(4,3) | NULL si `NO_CONCLUYENTE`; CHECK 0–1 |
-| `umbral_liveness` | numeric(4,3) | NOT NULL (valor vigente al evaluar) |
+| `motivo_fallo` | `motivo_fallo` | NULL except when `resultado = FALLIDO` (CHECK) |
+| `score_liveness` | numeric(4,3) | NULL if `NO_CONCLUYENTE`; CHECK 0–1 |
+| `score_comparacion` | numeric(4,3) | NULL if `NO_CONCLUYENTE`; CHECK 0–1 |
+| `umbral_liveness` | numeric(4,3) | NOT NULL (value in force at evaluation time) |
 | `umbral_comparacion` | numeric(4,3) | NOT NULL |
-| `proveedor` | text | NOT NULL (p. ej. `mock`, `vision`) |
-| `imagen_eliminada_at` | timestamptz | NULL hasta que la retención borre el blob |
+| `proveedor` | text | NOT NULL (e.g. `mock`, `vision`) |
+| `imagen_eliminada_at` | timestamptz | NULL until retention deletes the blob |
 | `created_at` | timestamptz | |
 
-**Regla del resultado** (vive solo en `domain/verification.py`):
-`EXITOSO` ⇔ `score_liveness ≥ umbral_liveness` **y** `score_comparacion ≥ umbral_comparacion`.
-Si falla la prueba de vida, `motivo_fallo = LIVENESS` (tiene prioridad); si no, `COMPARACION`.
+**Result rule** (lives only in `domain/verification.py`):
+`EXITOSO` ⇔ `score_liveness ≥ umbral_liveness` **and** `score_comparacion ≥ umbral_comparacion`.
+If liveness fails, `motivo_fallo = LIVENESS` (takes priority); otherwise `COMPARACION`.
 
 ### `identidades_digitales`
 
-| Campo | Tipo | Reglas |
+| Field | Type | Rules |
 |---|---|---|
 | `id` | uuid PK | |
 | `pasajero_id` | uuid FK → `pasajeros.id` | NOT NULL |
@@ -89,30 +89,30 @@ Si falla la prueba de vida, `motivo_fallo = LIVENESS` (tiene prioridad); si no, 
 | `revocada_at` | timestamptz | NULL |
 | `created_at` | timestamptz | |
 
-- Índice único parcial `(pasajero_id) WHERE estado = 'ACTIVA'` (FR-011).
+- Partial unique index `(pasajero_id) WHERE estado = 'ACTIVA'` (FR-011).
 
 ### `credenciales_acceso`
 
-| Campo | Tipo | Reglas |
+| Field | Type | Rules |
 |---|---|---|
-| `id` | uuid PK | También es el `jti` del token firmado |
+| `id` | uuid PK | Also the `jti` of the signed token |
 | `pasajero_id` | uuid FK → `pasajeros.id` | NOT NULL |
 | `identidad_id` | uuid FK → `identidades_digitales.id` | NOT NULL |
-| `codigo_vuelo` | text | NOT NULL, patrón `^[A-Z0-9]{2}[0-9]{1,4}[A-Z]?$` (p. ej. `AV9380`) |
-| `permisos` | text[] | NOT NULL, no vacío; default `{embarque}` |
-| `firma` | text | NOT NULL, firma Ed25519 (base64url) del token |
-| `kid` | text | NOT NULL, id de la clave de firma usada |
+| `codigo_vuelo` | text | NOT NULL, pattern `^[A-Z0-9]{2}[0-9]{1,4}[A-Z]?$` (e.g. `AV9380`) |
+| `permisos` | text[] | NOT NULL, non-empty; default `{embarque}` |
+| `firma` | text | NOT NULL, Ed25519 signature (base64url) of the token |
+| `kid` | text | NOT NULL, id of the signing key used |
 | `emitida_at` | timestamptz | NOT NULL |
 | `expira_at` | timestamptz | NOT NULL; CHECK `expira_at - emitida_at BETWEEN 30s AND 60s` (FR-016) |
 | `estado` | `estado_credencial` | NOT NULL |
 | `updated_at` | timestamptz | |
 
-- Índice único parcial `(pasajero_id, codigo_vuelo) WHERE estado IN ('EMITIDA','ACTIVA')`
-  (FR-020: como máximo una credencial viva por pasajero y vuelo).
-- Índice `(estado, expira_at)` para el barrido de expiración.
+- Partial unique index `(pasajero_id, codigo_vuelo) WHERE estado IN ('EMITIDA','ACTIVA')`
+  (FR-020: at most one live credential per passenger and flight).
+- Index `(estado, expira_at)` for the expiration sweep.
 
-**Máquina de estados** (patrón State en `domain/credential/states.py`; cada estado conoce sus
-transiciones válidas, no hay `if` sueltos):
+**State machine** (State pattern in `domain/credential/states.py`; each state knows its valid
+transitions, there are no scattered `if`s):
 
 ```text
           ┌────────────▶ REVOCADA ◀───────────┐
@@ -122,7 +122,7 @@ transiciones válidas, no hay `if` sueltos):
           └──▶ EXPIRADA ◀────┘
 ```
 
-| Desde \ Hacia | ACTIVA | CONSUMIDA | EXPIRADA | REVOCADA |
+| From \ To | ACTIVA | CONSUMIDA | EXPIRADA | REVOCADA |
 |---|---|---|---|---|
 | EMITIDA | ✅ | ❌ | ✅ | ✅ |
 | ACTIVA | ❌ | ✅ | ✅ | ✅ |
@@ -130,67 +130,67 @@ transiciones válidas, no hay `if` sueltos):
 | EXPIRADA | ❌ | ❌ | ❌ | ❌ |
 | REVOCADA | ❌ | ❌ | ❌ | ❌ |
 
-Toda transición (aceptada o rechazada) genera una fila en `transiciones_credencial` (FR-018,
-FR-019). Para que las rechazadas no se pierdan por un rollback, los métodos de transición del
-agregado **no lanzan excepciones**: devuelven un `TransitionResult(aceptada, estado_actual)` y
-registran la transición; el servicio hace commit y luego decide la respuesta. La expiración se aplica de forma perezosa (al leer, si `now() ≥ expira_at` y el estado
-no es final) y por el barrido del dispatcher.
+Every transition (accepted or rejected) creates a row in `transiciones_credencial` (FR-018,
+FR-019). So that rejected ones are not lost to a rollback, the aggregate's transition methods
+**do not raise exceptions**: they return a `TransitionResult(aceptada, estado_actual)` and record
+the transition; the service commits and then decides the response. Expiration is applied lazily
+(on read, if `now() ≥ expira_at` and the state is not final) and by the dispatcher's sweep.
 
-### `transiciones_credencial` (solo inserción)
+### `transiciones_credencial` (insert only)
 
-| Campo | Tipo | Reglas |
+| Field | Type | Rules |
 |---|---|---|
 | `id` | bigint identity PK | |
-| `credencial_id` | uuid FK → `credenciales_acceso.id` | NOT NULL, índice |
-| `estado_anterior` | `estado_credencial` | NULL para la creación |
+| `credencial_id` | uuid FK → `credenciales_acceso.id` | NOT NULL, index |
+| `estado_anterior` | `estado_credencial` | NULL for creation |
 | `estado_solicitado` | `estado_credencial` | NOT NULL |
 | `aceptada` | boolean | NOT NULL |
-| `motivo` | text | p. ej. `EMISION`, `RENOVACION`, `EXPIRACION`, `CONSUMO`, `TRANSICION_INVALIDA` |
+| `motivo` | text | e.g. `EMISION`, `RENOVACION`, `EXPIRACION`, `CONSUMO`, `TRANSICION_INVALIDA` |
 | `actor` | text | `sistema`, `checkpoint:<id>`, etc. |
 | `created_at` | timestamptz | |
 
-- Trigger `BEFORE UPDATE OR DELETE` que lanza una excepción (historial inmutable).
+- `BEFORE UPDATE OR DELETE` trigger that raises an exception (immutable history).
 
-### `outbox_eventos` (entidad `EventoPendiente` del spec)
+### `outbox_eventos` (the spec's `EventoPendiente` entity)
 
-| Campo | Tipo | Reglas |
+| Field | Type | Rules |
 |---|---|---|
-| `id` | uuid PK | Id del evento y `deduplication_id` en QStash |
-| `tipo` | text | p. ej. `credencial.emitida` |
-| `version` | smallint | Versión del esquema del evento (empieza en 1) |
-| `payload` | jsonb | Validado contra `contracts/events/<tipo>.v<version>.json` |
+| `id` | uuid PK | Event id and `deduplication_id` in QStash |
+| `tipo` | text | e.g. `credencial.emitida` |
+| `version` | smallint | Event schema version (starts at 1) |
+| `payload` | jsonb | Validated against `contracts/events/<tipo>.v<version>.json` |
 | `estado` | `estado_evento` | default `PENDIENTE` |
 | `intentos` | int | default 0 |
-| `proximo_intento_at` | timestamptz | default `now()`; backoff `min(2^intentos, 180)` s — con el dispatcher cada 60 s, el peor caso tras la recuperación es 4 min (< 5 min de SC-006) |
+| `proximo_intento_at` | timestamptz | default `now()`; backoff `min(2^intentos, 180)` s — with the dispatcher every 60 s, the worst case after recovery is 4 min (< 5 min of SC-006) |
 | `ultimo_error` | text | NULL |
 | `created_at`, `entregado_at` | timestamptz | |
 
-- Índice parcial `(proximo_intento_at) WHERE estado = 'PENDIENTE'`.
+- Partial index `(proximo_intento_at) WHERE estado = 'PENDIENTE'`.
 
-## Vercel Blob (store privado)
+## Vercel Blob (private store)
 
 - Pathnames:
-  - Foto del documento: `documentos/{pasajero_id}/rostro-{sufijo_aleatorio}.{jpg|png|webp}`.
-  - Selfies: `selfies/{pasajero_id}/{intento_id}-{sufijo_aleatorio}.{jpg|png|webp}`. Una selfie
-    cuyo `intento_id` no existe en `intentos_verificacion` es huérfana (edge case del spec).
-- Tamaño máximo 4 MB por imagen; tipos `image/jpeg`, `image/png`, `image/webp` (validados por
-  cabecera y por firma de bytes).
-- Retención (supuesto del spec, pendiente de confirmar con legal): mientras la identidad esté
-  activa y hasta 90 días tras su revocación o tras el último intento fallido. Al borrar una selfie
-  se llena `imagen_eliminada_at` y el intento se conserva sin imagen.
+  - Document photo: `documentos/{pasajero_id}/rostro-{random_suffix}.{jpg|png|webp}`.
+  - Selfies: `selfies/{pasajero_id}/{intento_id}-{random_suffix}.{jpg|png|webp}`. A selfie whose
+    `intento_id` does not exist in `intentos_verificacion` is an orphan (spec edge case).
+- Max size 4 MB per image; types `image/jpeg`, `image/png`, `image/webp` (validated by header
+  and by byte signature).
+- Retention (spec assumption, pending confirmation with legal): while the identity is active and
+  up to 90 days after its revocation or after the last failed attempt. When a selfie is deleted
+  `imagen_eliminada_at` is filled and the attempt is kept without an image.
 
 ## Upstash Redis
 
-| Clave | Valor | TTL | Uso |
+| Key | Value | TTL | Use |
 |---|---|---|---|
-| `qr:{jti}` | `ACTIVA` → `CONSUMIDA` | = vida de la credencial (30–60 s) | Entidad `TokenUsoUnico` del spec. Uso único (FR-017, RN-06). `DEL` al revocar, siempre después del commit |
-| `rl:passes:{pasajero_id}` | gestionado por `upstash-ratelimit` | 60 s de ventana | 30 emisiones/min (FR-020a) |
-| `cb:{nombre}` | hash `{estado, fallos, abierto_hasta}` | 10 min | Estado compartido del circuit breaker |
+| `qr:{jti}` | `ACTIVA` → `CONSUMIDA` | = credential lifetime (30–60 s) | The spec's `TokenUsoUnico` entity. Single use (FR-017, RN-06). `DEL` on revocation, always after the commit |
+| `rl:passes:{pasajero_id}` | managed by `upstash-ratelimit` | 60 s window | 30 issuances/min (FR-020a) |
+| `cb:{nombre}` | hash `{estado, fallos, abierto_hasta}` | 10 min | Shared circuit breaker state |
 
-Redis nunca es la fuente de verdad del estado de la credencial: si una clave falta, la
-credencial se trata como no usable (estado seguro por defecto).
+Redis is never the source of truth for the credential state: if a key is missing, the credential
+is treated as unusable (safe default state).
 
-## Relaciones
+## Relationships
 
 ```text
 pasajeros 1 ──── * intentos_verificacion

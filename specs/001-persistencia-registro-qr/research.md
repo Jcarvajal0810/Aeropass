@@ -1,189 +1,191 @@
-# Research: Persistencia del flujo de registro, verificación biométrica y QR
+# Research: Persistence of the registration, biometric verification and QR flow
 
 **Feature**: `001-persistencia-registro-qr` | **Date**: 2026-09-23
 
-Cada decisión sigue el formato Decision / Rationale / Alternatives considered. No quedan
-`NEEDS CLARIFICATION` en el Technical Context del plan.
+Each decision follows the Decision / Rationale / Alternatives considered format. No
+`NEEDS CLARIFICATION` remain in the plan's Technical Context.
 
-## R1. Acceso a Neon Postgres en serverless
+## R1. Accessing Neon Postgres from serverless
 
-- **Decision**: SQLAlchemy 2.x en modo async con el driver `asyncpg`, contra el endpoint
-  **pooled** de Neon (PgBouncer en modo transacción). Un único `AsyncEngine` por proceso
-  (Singleton) con `pool_size=1`, `max_overflow=4`, `pool_pre_ping=True`, `pool_recycle=300` y
-  `connect_args={"statement_cache_size": 0}` + `prepared_statement_cache_size=0` en la URL
-  (obligatorio con PgBouncer en modo transacción). Migraciones con Alembic usando la URL
-  **directa** (no pooled) de Neon.
-- **Rationale**: el ORM da unidades de trabajo y bloqueos de fila (`SELECT … FOR UPDATE`)
-  necesarios para contar intentos y revocar credenciales sin carreras; asyncpg es el driver async
-  más rápido. El pooler de Neon absorbe las muchas instancias efímeras de Vercel; el engine
-  Singleton reutiliza la conexión mientras la instancia está caliente y `pool_pre_ping` recupera
-  conexiones rotas tras un congelamiento.
-- **Alternatives considered**: asyncpg puro (menos código, pero repetiría mapeo y unidades de
-  trabajo — viola DRY); driver HTTP serverless de Neon (no tiene cliente Python oficial maduro y
-  pierde transacciones interactivas); `NullPool` (una conexión nueva por petición: +30–80 ms).
+- **Decision**: SQLAlchemy 2.x in async mode with the `asyncpg` driver, against Neon's **pooled**
+  endpoint (PgBouncer in transaction mode). A single `AsyncEngine` per process (Singleton) with
+  `pool_size=1`, `max_overflow=4`, `pool_pre_ping=True`, `pool_recycle=300` and
+  `connect_args={"statement_cache_size": 0}` + `prepared_statement_cache_size=0` in the URL
+  (mandatory with PgBouncer in transaction mode). Migrations with Alembic using Neon's **direct**
+  (non-pooled) URL.
+- **Rationale**: the ORM provides units of work and row locks (`SELECT … FOR UPDATE`) needed to
+  count attempts and revoke credentials without races; asyncpg is the fastest async driver.
+  Neon's pooler absorbs Vercel's many ephemeral instances; the Singleton engine reuses the
+  connection while the instance is warm and `pool_pre_ping` recovers broken connections after a
+  freeze.
+- **Alternatives considered**: plain asyncpg (less code, but would repeat mapping and units of
+  work — violates DRY); Neon's serverless HTTP driver (no mature official Python client and it
+  loses interactive transactions); `NullPool` (a new connection per request: +30–80 ms).
 
-## R2. Almacenamiento de selfies (Vercel Blob)
+## R2. Selfie storage (Vercel Blob)
 
-- **Decision**: store de Vercel Blob con acceso **privado** (`access: private`) para la selfie
-  (`selfies/{pasajero_id}/{intento_id}-{sufijo}.{ext}`) y para la foto del rostro del documento
-  (`documentos/{pasajero_id}/rostro-{sufijo}.{ext}`), con timeout de **3 s** por operación. Lectura solo desde el servidor
-  con `BLOB_READ_WRITE_TOKEN` (o `VERCEL_OIDC_TOKEN`). El acceso va detrás del puerto
-  `MediaStorage`; la implementación `VercelBlobStorage` usa el SDK Python de Vercel si expone
-  `put/get/delete` de Blob, y si no, una capa delgada `httpx` sobre la API HTTP de Blob. El
-  cliente HTTP es Singleton.
-- **Rationale**: la documentación de Vercel confirma el almacenamiento privado con autenticación
-  por Bearer token, lo que cumple FR-010. El puerto aísla la duda sobre la madurez del SDK Python.
-- **Alternatives considered**: store público con URL no adivinable (seguridad por oscuridad,
-  no cumple FR-010); subida directa desde el cliente con token de cliente (el servidor tendría que
-  confiar en una URL enviada por el cliente, y la foto no pasaría por la validación del servidor).
+- **Decision**: Vercel Blob store with **private** access (`access: private`) for the selfie
+  (`selfies/{pasajero_id}/{intento_id}-{suffix}.{ext}`) and for the document's face photo
+  (`documentos/{pasajero_id}/rostro-{suffix}.{ext}`), with a **3 s** timeout per operation. Read
+  only from the server with `BLOB_READ_WRITE_TOKEN` (or `VERCEL_OIDC_TOKEN`). Access goes behind
+  the `MediaStorage` port; the `VercelBlobStorage` implementation uses Vercel's Python SDK if it
+  exposes Blob `put/get/delete`, and otherwise a thin `httpx` layer over the Blob HTTP API. The
+  HTTP client is a Singleton.
+- **Rationale**: Vercel's documentation confirms private storage with Bearer token
+  authentication, which satisfies FR-010. The port isolates the uncertainty about the Python
+  SDK's maturity.
+- **Alternatives considered**: public store with an unguessable URL (security by obscurity,
+  does not satisfy FR-010); direct upload from the client with a client token (the server would
+  have to trust a URL sent by the client, and the photo would not go through server validation).
 
-## R3. Tamaño máximo de las imágenes
+## R3. Maximum image size
 
-- **Decision**: máximo **4 MB** por imagen (selfie o foto del documento; JPEG, PNG o WebP),
-  validado por cabecera `Content-Length`, `Content-Type` y firma de bytes antes de subirla. Se
-  ajustó el edge case del spec (antes 5 MB).
-- **Rationale**: el cuerpo de una petición a una Vercel Function tiene un límite de 4,5 MB; con el
-  encabezado multipart, 5 MB no cabe. Una selfie comprimida en el cliente pesa típicamente
-  menos de 1 MB.
-- **Alternatives considered**: subida directa del cliente a Blob (ver R2, descartada).
+- **Decision**: max **4 MB** per image (selfie or document photo; JPEG, PNG or WebP), validated
+  by the `Content-Length` header, `Content-Type` and byte signature before uploading it. The
+  spec's edge case was adjusted (previously 5 MB).
+- **Rationale**: the request body of a Vercel Function is limited to 4.5 MB; with the multipart
+  envelope, 5 MB does not fit. A selfie compressed on the client typically weighs less than 1 MB.
+- **Alternatives considered**: direct upload from the client to Blob (see R2, discarded).
 
-## R4. Proveedor biométrico (prueba de vida + comparación)
+## R4. Biometric provider (liveness + face match)
 
-- **Decision**: puerto `BiometricProvider.evaluate(selfie: ImageInput, referencia: ImageInput) ->
-  BiometricResult` (score de liveness, score de comparación, proveedor), donde `referencia` es la
-  foto del rostro del documento guardada en el registro (FR-001a). Implementaciones:
-  `VisionProviderAdapter` (HTTP genérico vía `httpx`, traduce la respuesta del proveedor al
-  modelo de dominio) y `MockBiometricAdapter` (determinista: decide por un marcador ASCII
-  `MOCK:ok|spoof|other|timeout` incrustado en los bytes de la selfie; sin marcador → `ok`). Se
-  eligen con `BiometricProviderFactory` según `BIOMETRIC_PROVIDER=mock|vision`. Timeout de **4 s**
-  por llamada.
-- **Presupuesto de latencia (SC-007, < 10 s)**: la subida de la selfie y la descarga de la foto de
-  referencia van en paralelo (`asyncio.gather`, 3 s máx.) y luego el proveedor (4 s máx.): peor
-  caso ~7 s + base de datos, con margen para el arranque en frío.
-- **Rationale**: Factory + Adapter exigidos por la constitución; el proveedor real aún no está
-  contratado, así que el mock permite avanzar y probar.
-- **Alternatives considered**: acoplar un proveedor concreto (Rekognition, Azure Face) —
-  prematuro; verificación WASM en el cliente — descartada en la clarificación (se evalúa en servidor).
+- **Decision**: port `BiometricProvider.evaluate(selfie: ImageInput, referencia: ImageInput) ->
+  BiometricResult` (liveness score, match score, provider), where `referencia` is the document's
+  face photo stored at registration (FR-001a). Implementations: `VisionProviderAdapter` (generic
+  HTTP via `httpx`, translates the provider's response into the domain model) and
+  `MockBiometricAdapter` (deterministic: decides by an ASCII marker `MOCK:ok|spoof|other|timeout`
+  embedded in the selfie bytes; no marker → `ok`). They are chosen with
+  `BiometricProviderFactory` according to `BIOMETRIC_PROVIDER=mock|vision`. **4 s** timeout per
+  call.
+- **Latency budget (SC-007, < 10 s)**: uploading the selfie and downloading the reference photo
+  run in parallel (`asyncio.gather`, 3 s max) and then the provider (4 s max): worst case ~7 s +
+  database, with headroom for a cold start.
+- **Rationale**: Factory + Adapter required by the constitution; the real provider is not
+  contracted yet, so the mock allows progress and testing.
+- **Alternatives considered**: coupling to a concrete provider (Rekognition, Azure Face) —
+  premature; WASM verification on the client — discarded during clarification (it is evaluated
+  on the server).
 
 ## R5. Circuit Breaker
 
-- **Decision**: implementación propia `CircuitBreaker` (estados CLOSED / OPEN / HALF_OPEN) con
-  almacenamiento de estado pluggable: `RedisBreakerStateStore` (Upstash Redis, compartido entre
-  instancias) en producción e `InMemoryBreakerStateStore` en pruebas. Parámetros por defecto: se
-  abre con 5 fallos en una ventana de 60 s, permanece abierto 30 s, y en HALF_OPEN deja pasar una
-  sola llamada de prueba. Se aplica al proveedor biométrico y al publicador QStash. Si el breaker
-  está abierto, el proveedor biométrico devuelve `NO_CONCLUYENTE` al instante y el publicador deja
-  el evento pendiente en el outbox.
-- **Rationale**: las bibliotecas (`pybreaker`, `aiobreaker`, `purgatory`) guardan el estado en
-  memoria o en redis-py; en serverless el estado en memoria se pierde con cada arranque en frío
-  (constitución, Principio V). Un breaker propio con puerto de estado cabe en ~100 líneas y es
-  totalmente testeable.
-- **Alternatives considered**: `purgatory` con backend Redis (usa el protocolo Redis y no el
-  cliente REST de Upstash; añade una segunda forma de conectarse a Redis).
+- **Decision**: in-house `CircuitBreaker` implementation (CLOSED / OPEN / HALF_OPEN states) with
+  pluggable state storage: `RedisBreakerStateStore` (Upstash Redis, shared between instances) in
+  production and `InMemoryBreakerStateStore` in tests. Default parameters: opens with 5 failures
+  in a 60 s window, stays open 30 s, and in HALF_OPEN lets a single probe call through. Applied to
+  the biometric provider and the QStash publisher. If the breaker is open, the biometric provider
+  returns `NO_CONCLUYENTE` instantly and the publisher leaves the event pending in the outbox.
+- **Rationale**: the libraries (`pybreaker`, `aiobreaker`, `purgatory`) keep the state in memory
+  or in redis-py; in serverless in-memory state is lost on every cold start (constitution,
+  Principle V). An in-house breaker with a state port fits in ~100 lines and is fully testable.
+- **Alternatives considered**: `purgatory` with a Redis backend (uses the Redis protocol and not
+  Upstash's REST client; adds a second way of connecting to Redis).
 
-## R6. Upstash Redis: token de uso único y límite de emisión
+## R6. Upstash Redis: single-use token and issuance limit
 
-- **Decision**: cliente `upstash-redis` (async, sobre HTTP REST) como Singleton.
-  - Token: clave `qr:{jti}` = `ACTIVA`, con `SET … EX <ttl> NX`, donde el TTL es igual a la
-    expiración de la credencial.
-  - Revocación: `DEL qr:{jti}`.
-  - Consumo (punto de extensión para el checkpoint): script Lua atómico: si el valor es `ACTIVA`,
-    lo cambia a `CONSUMIDA` con `KEEPTTL` y devuelve 1; en otro caso devuelve 0 (RN-06).
-  - Límite de emisión: `upstash-ratelimit` con ventana deslizante de 30 emisiones / 60 s por
+- **Decision**: `upstash-redis` client (async, over HTTP REST) as a Singleton.
+  - Token: key `qr:{jti}` = `ACTIVA`, with `SET … EX <ttl> NX`, where the TTL equals the
+    credential's expiration.
+  - Revocation: `DEL qr:{jti}`.
+  - Consumption (extension point for the checkpoint): atomic Lua script: if the value is
+    `ACTIVA`, it changes it to `CONSUMIDA` with `KEEPTTL` and returns 1; otherwise it returns 0
+    (RN-06).
+  - Issuance limit: `upstash-ratelimit` with a sliding window of 30 issuances / 60 s per
     `pasajero_id`.
-- **Rationale**: el cliente REST no mantiene conexiones abiertas, ideal para serverless; el script
-  Lua garantiza atomicidad del consumo aunque dos lecturas lleguen a la vez.
-- **Alternatives considered**: `GETDEL` (no deja rastro de que la credencial fue consumida —
-  se pierde la distinción entre consumida y expirada); redis-py por TLS (conexiones persistentes
-  que no sobreviven al congelamiento de la instancia).
+- **Rationale**: the REST client keeps no open connections, ideal for serverless; the Lua script
+  guarantees atomic consumption even if two reads arrive at once.
+- **Alternatives considered**: `GETDEL` (leaves no trace that the credential was consumed — the
+  distinction between consumed and expired is lost); redis-py over TLS (persistent connections
+  that do not survive the instance freeze).
 
-## R7. Publicación de `credencial.emitida` sin perder eventos (QStash)
+## R7. Publishing `credencial.emitida` without losing events (QStash)
 
 - **Decision**: **Transactional outbox**.
-  1. La IdentidadDigital y la fila `outbox_eventos` (estado `PENDIENTE`) se insertan en la
-     **misma transacción**.
-  2. Tras el commit, se intenta publicar de inmediato con `qstash` (`AsyncQStash.message.publish_json`)
-     con timeout de 2 s, a través del circuit breaker, usando `deduplication_id = evento.id`. Si
-     tiene éxito, la fila pasa a `ENTREGADO`; si falla, queda `PENDIENTE` y la respuesta al
-     pasajero no se afecta.
-  3. Un **schedule de QStash** (cada minuto) llama a `POST /internal/outbox/dispatch`, firmado por
-     QStash, que reintenta los eventos pendientes con backoff exponencial `min(2^intentos, 180)` s
-     (peor caso tras la recuperación: 180 s + 60 s del schedule = 4 min, dentro de SC-006) y marca como
-     `EXPIRADA` las credenciales vencidas.
-- **Rationale**: garantiza FR-013 (el evento no se pierde) y SC-006 (entrega en menos de 5 min
-  tras recuperarse QStash) sin depender de tareas en segundo plano después de la respuesta, que el
-  runtime Python de Vercel no garantiza. La deduplicación de QStash y el `id` del evento permiten a
-  los consumidores procesarlo una sola vez.
-- **Alternatives considered**: `BackgroundTasks` de FastAPI (la función puede congelarse al
-  responder y perder el envío); Vercel Cron (en el plan Hobby solo es diario; el schedule de
-  QStash mantiene todo dentro del stack de la constitución).
-- **Nota sobre el nombre del evento**: el spec (FR-012) publica `credencial.emitida` al crear la
-  IdentidadDigital. Se conserva ese nombre; el contenido incluye
-  `tipo_credencial: "IDENTIDAD_DIGITAL"` para no confundirlo con la emisión de cada QR, que **no**
-  genera evento (a 30–60 s por QR con renovación automática produciría ruido).
+  1. The IdentidadDigital and the `outbox_eventos` row (status `PENDIENTE`) are inserted in the
+     **same transaction**.
+  2. After the commit, an immediate publish is attempted with `qstash`
+     (`AsyncQStash.message.publish_json`) with a 2 s timeout, through the circuit breaker, using
+     `deduplication_id = evento.id`. On success the row moves to `ENTREGADO`; on failure it stays
+     `PENDIENTE` and the response to the passenger is not affected.
+  3. A **QStash schedule** (every minute) calls `POST /internal/outbox/dispatch`, signed by
+     QStash, which retries pending events with exponential backoff `min(2^intentos, 180)` s
+     (worst case after recovery: 180 s + 60 s of the schedule = 4 min, within SC-006) and marks
+     expired credentials as `EXPIRADA`.
+- **Rationale**: guarantees FR-013 (the event is not lost) and SC-006 (delivery in less than
+  5 min after QStash recovers) without relying on background tasks after the response, which
+  Vercel's Python runtime does not guarantee. QStash deduplication and the event `id` let
+  consumers process it only once.
+- **Alternatives considered**: FastAPI `BackgroundTasks` (the function may freeze on responding
+  and lose the send); Vercel Cron (on the Hobby plan it is only daily; the QStash schedule keeps
+  everything inside the constitution's stack).
+- **Note on the event name**: the spec (FR-012) publishes `credencial.emitida` when the
+  IdentidadDigital is created. That name is kept; the content includes
+  `tipo_credencial: "IDENTIDAD_DIGITAL"` so it is not confused with the issuance of each QR,
+  which does **not** produce an event (at 30–60 s per QR with automatic renewal it would be
+  noise).
 
-## R8. Firma de la CredencialAcceso
+## R8. Signing the CredencialAcceso
 
-- **Decision**: token compacto **JWS con EdDSA (Ed25519)** vía `PyJWT[crypto]`. Claims: `jti`
-  (id de credencial), `sub` (pasajero_id), `flt` (código de vuelo), `perms`, `iat`, `exp`, `kid`.
-  Clave privada en la variable de entorno `QR_SIGNING_PRIVATE_KEY` (PEM); la clave pública se
-  expone en `GET /.well-known/jwks.json`. El QR codifica el JWS.
-- **Rationale**: la firma asimétrica permite que el checkpoint (otro equipo) verifique la firma
-  sin compartir secretos y también en modo contingencia/offline (Strategy, constitución). Ed25519
-  produce firmas cortas (64 bytes), adecuadas para un QR legible.
-- **Alternatives considered**: HMAC-SHA256 (obliga a compartir el secreto con cada checkpoint);
-  RSA (firmas de 256+ bytes, QR más denso).
+- **Decision**: compact **JWS with EdDSA (Ed25519)** token via `PyJWT[crypto]`. Claims: `jti`
+  (credential id), `sub` (pasajero_id), `flt` (flight code), `perms`, `iat`, `exp`, `kid`.
+  Private key in the `QR_SIGNING_PRIVATE_KEY` environment variable (PEM); the public key is
+  exposed at `GET /.well-known/jwks.json`. The QR encodes the JWS.
+- **Rationale**: asymmetric signing lets the checkpoint (another team) verify the signature
+  without sharing secrets and also in contingency/offline mode (Strategy, constitution). Ed25519
+  produces short signatures (64 bytes), suitable for a readable QR.
+- **Alternatives considered**: HMAC-SHA256 (forces sharing the secret with every checkpoint);
+  RSA (256+ byte signatures, denser QR).
 
-## R9. Autenticación con Clerk
+## R9. Authentication with Clerk
 
-- **Decision**: dependencia FastAPI `get_current_user` que valida el session token de Clerk con
-  `clerk-backend-api` (`authenticate_request`) y devuelve `AuthenticatedUser(clerk_user_id)`. El
-  JWKS se cachea por proceso (es una caché, no estado de negocio). `/internal/*` no usa Clerk: se
-  valida la firma de QStash (`Upstash-Signature`) con `qstash.Receiver`.
-- **Rationale**: SDK oficial; sin API Gateway, cada router declara su dependencia de seguridad.
-- **Alternatives considered**: PyJWT + JWKS manual (válido como fallback; más código propio).
+- **Decision**: FastAPI dependency `get_current_user` that validates the Clerk session token with
+  `clerk-backend-api` (`authenticate_request`) and returns `AuthenticatedUser(clerk_user_id)`. The
+  JWKS is cached per process (it is a cache, not business state). `/internal/*` does not use
+  Clerk: the QStash signature (`Upstash-Signature`) is validated with `qstash.Receiver`.
+- **Rationale**: official SDK; without an API Gateway, each router declares its security
+  dependency.
+- **Alternatives considered**: PyJWT + manual JWKS (valid as a fallback; more in-house code).
 
-## R10. Concurrencia e integridad
+## R10. Concurrency and integrity
 
 - **Decision**:
-  - Unicidad de documento: `UNIQUE (tipo_documento, numero_documento)`.
-  - Una IdentidadDigital activa por pasajero: índice único parcial `WHERE estado = 'ACTIVA'`.
-  - Una credencial no final por pasajero y vuelo: índice único parcial sobre
-    `(pasajero_id, codigo_vuelo) WHERE estado IN ('EMITIDA','ACTIVA')`. La renovación revoca la
-    anterior y crea la nueva en la **misma transacción**, con `SELECT … FOR UPDATE` sobre el
-    pasajero.
-  - Intentos fallidos: el contador se incrementa con el pasajero bloqueado (`FOR UPDATE`). El
-    bloqueo se toma **solo** en la transacción final de registro del intento, nunca mientras se
-    sube la imagen o se llama al proveedor (evita retener conexiones del pooler de Neon hasta
-    ~7 s); dentro de esa transacción se revalida el estado del pasajero.
-  - Consumo (RN-06): `UPDATE … SET estado='CONSUMIDA' WHERE id=:id AND estado='ACTIVA'` más el
-    script Lua en Redis; si ninguno aplica, la transición se rechaza y se registra.
-  - Transiciones rechazadas: los métodos del agregado devuelven un `TransitionResult` en lugar de
-    lanzar, para que el rollback del UnitOfWork no borre la fila del rechazo (FR-019).
-  - Redis tras commit: `DEL qr:{jti}` de la credencial revocada se ejecuta después del commit;
-    si falla, el token caduca solo en ≤ 60 s y Postgres ya la marca `REVOCADA`.
-  - Historial inmutable: `transiciones_credencial` solo admite `INSERT` (un trigger rechaza
-    `UPDATE` y `DELETE`).
-- **Rationale**: las restricciones en la base de datos son la última línea de defensa frente a
-  carreras entre instancias serverless.
+  - Document uniqueness: `UNIQUE (tipo_documento, numero_documento)`.
+  - One active IdentidadDigital per passenger: partial unique index `WHERE estado = 'ACTIVA'`.
+  - One non-final credential per passenger and flight: partial unique index on
+    `(pasajero_id, codigo_vuelo) WHERE estado IN ('EMITIDA','ACTIVA')`. Renewal revokes the
+    previous one and creates the new one in the **same transaction**, with `SELECT … FOR UPDATE`
+    on the passenger.
+  - Failed attempts: the counter is incremented with the passenger locked (`FOR UPDATE`). The
+    lock is taken **only** in the final transaction that records the attempt, never while the
+    image is uploaded or the provider is called (avoids holding Neon pooler connections for up
+    to ~7 s); inside that transaction the passenger's status is revalidated.
+  - Consumption (RN-06): `UPDATE … SET estado='CONSUMIDA' WHERE id=:id AND estado='ACTIVA'` plus
+    the Lua script in Redis; if neither applies, the transition is rejected and recorded.
+  - Rejected transitions: the aggregate's methods return a `TransitionResult` instead of
+    raising, so the UnitOfWork rollback does not erase the rejection row (FR-019).
+  - Redis after commit: `DEL qr:{jti}` of the revoked credential runs after the commit; if it
+    fails, the token expires on its own in ≤ 60 s and Postgres already marks it `REVOCADA`.
+  - Immutable history: `transiciones_credencial` only allows `INSERT` (a trigger rejects
+    `UPDATE` and `DELETE`).
+- **Rationale**: database constraints are the last line of defense against races between
+  serverless instances.
 
-## R11. Pruebas
+## R11. Tests
 
 - **Decision**: `pytest` + `pytest-asyncio` + `httpx.AsyncClient` (ASGI).
-  - **Unit**: dominio (State, Builder, reglas de intentos) y servicios con dobles en memoria de
-    todos los puertos (`src/aeropass/adapters/fakes/`, también usados con `AEROPASS_ADAPTERS=fake`).
-  - **Integration**: contra un Postgres real (contenedor `postgres:16` local o una rama de Neon
-    vía `TEST_DATABASE_URL`), con Redis/Blob/QStash falsos.
-  - **Contract**: validación de respuestas contra `contracts/openapi.yaml` y de eventos contra
+  - **Unit**: domain (State, Builder, attempt rules) and services with in-memory doubles of all
+    ports (`src/aeropass/adapters/fakes/`, also used with `AEROPASS_ADAPTERS=fake`).
+  - **Integration**: against a real Postgres (local `postgres:16` container or a Neon branch via
+    `TEST_DATABASE_URL`), with fake Redis/Blob/QStash.
+  - **Contract**: validation of responses against `contracts/openapi.yaml` and of events against
     `contracts/events/*.json` (`jsonschema`).
-- **Rationale**: los fakes de puertos hacen las pruebas rápidas y deterministas; las
-  restricciones SQL (índices parciales, trigger) solo se prueban con Postgres real.
+- **Rationale**: port fakes make tests fast and deterministic; SQL constraints (partial indexes,
+  trigger) can only be tested with real Postgres.
 
-## R12. Despliegue y empaquetado
+## R12. Deployment and packaging
 
-- **Decision**: `pyproject.toml` gestionado con `uv`; entrypoint FastAPI `api/index.py`
-  (reexporta `app` desde `aeropass.main`); `vercel.json` con reescritura de todas las rutas a
-  `api/index.py` y `excludeFiles` para `tests/**`. La región de la función se fija junto a la
-  región de Neon (p. ej. `gru1` ↔ `aws-sa-east-1` para usuarios en Colombia), igual que la
-  región del store de Blob y de la base de Upstash.
-- **Rationale**: cada salto entre regiones añade 100+ ms, lo que comprometería SC-002.
+- **Decision**: `pyproject.toml` managed with `uv`; FastAPI entrypoint `api/index.py`
+  (re-exports `app` from `aeropass.main`); `vercel.json` rewriting all routes to `api/index.py`
+  and `excludeFiles` for `tests/**`. The function region is set next to the Neon region (e.g.
+  `gru1` ↔ `aws-sa-east-1` for users in Colombia), as are the regions of the Blob store and the
+  Upstash database.
+- **Rationale**: every cross-region hop adds 100+ ms, which would compromise SC-002.

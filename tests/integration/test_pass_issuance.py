@@ -1,4 +1,4 @@
-"""US4 — Generación del QR dinámico (spec US4 scenarios 1–6 + edge cases)."""
+"""US4 — Dynamic QR generation (spec US4 scenarios 1–6 + edge cases)."""
 
 import uuid
 from datetime import datetime

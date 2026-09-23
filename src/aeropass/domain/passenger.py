@@ -128,7 +128,7 @@ class Pasajero:
     def con_identidad(self, identidad_id: uuid.UUID | None) -> Pasajero:
         return replace(self, identidad_id=identidad_id)
 
-    # --- verificación biométrica (FR-008) ------------------------------------------------
+    # --- biometric verification (FR-008) -------------------------------------------------
     def assert_can_verify(self) -> None:
         if self.estado is not EstadoPasajero.PENDIENTE_VERIFICACION:
             raise EstadoNoPermiteVerificacion()

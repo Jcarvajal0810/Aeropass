@@ -22,7 +22,7 @@ def main(argv: list[str]) -> int:
     target.mkdir(parents=True, exist_ok=True)
     for name, marker in FILES.items():
         (target / name).write_bytes(make_image(marker))
-    print(f"{len(FILES)} imágenes en {target.resolve()}")
+    print(f"{len(FILES)} images in {target.resolve()}")
     return 0
 
 

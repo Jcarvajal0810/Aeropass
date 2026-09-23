@@ -55,14 +55,14 @@ class Settings(BaseSettings):
     @classmethod
     def _ttl_in_range(cls, v: int) -> int:
         if not 30 <= v <= 60:
-            raise ValueError("QR_TTL_SECONDS debe estar entre 30 y 60")
+            raise ValueError("QR_TTL_SECONDS must be between 30 and 60")
         return v
 
     @field_validator("biometric_liveness_threshold", "biometric_match_threshold")
     @classmethod
     def _threshold_in_range(cls, v: float) -> float:
         if not 0 <= v <= 1:
-            raise ValueError("los umbrales biométricos deben estar entre 0 y 1")
+            raise ValueError("biometric thresholds must be between 0 and 1")
         return v
 
     @property

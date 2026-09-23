@@ -5,17 +5,17 @@ Version change: (template, unversioned) → 1.0.0
 Bump rationale: first ratification of the constitution; all placeholders replaced.
 
 Modified principles (template placeholder → new title):
-  - [PRINCIPLE_1_NAME] → I. Stack Técnico Canónico (Serverless en Vercel)
-  - [PRINCIPLE_2_NAME] → II. Alcance Delimitado con Puntos de Extensión
-  - [PRINCIPLE_3_NAME] → III. SOLID en Servicios (NO NEGOCIABLE)
-  - [PRINCIPLE_4_NAME] → IV. DRY: Reglas de Negocio con Fuente Única
-  - [PRINCIPLE_5_NAME] → V. Circuit Breaker en Toda Dependencia Externa Inestable
+  - [PRINCIPLE_1_NAME] → I. Canonical Tech Stack (Serverless on Vercel)
+  - [PRINCIPLE_2_NAME] → II. Bounded Scope with Extension Points
+  - [PRINCIPLE_3_NAME] → III. SOLID in Services (NON-NEGOTIABLE)
+  - [PRINCIPLE_4_NAME] → IV. DRY: Business Rules with a Single Source
+  - [PRINCIPLE_5_NAME] → V. Circuit Breaker on Every Unstable External Dependency
 Added principles:
-  - VI. Observabilidad Habilitada, No Implementada Aquí
+  - VI. Observability Enabled, Not Implemented Here
 
 Added sections:
-  - Patrones de Diseño Obligatorios (replaces [SECTION_2_NAME])
-  - Flujo de Desarrollo y Puertas de Calidad (replaces [SECTION_3_NAME])
+  - Mandatory Design Patterns (replaces [SECTION_2_NAME])
+  - Development Workflow and Quality Gates (replaces [SECTION_3_NAME])
   - Governance (filled)
 
 Removed sections: none
@@ -32,176 +32,166 @@ Deferred TODOs: none. RATIFICATION_DATE set to first adoption date (2026-09-23).
 
 ## Core Principles
 
-### I. Stack Técnico Canónico (Serverless en Vercel)
+### I. Canonical Tech Stack (Serverless on Vercel)
 
-El backend de AeroPass MUST construirse exclusivamente sobre el siguiente stack. Cualquier
-documento de referencia escrito para AWS/Next.js se traduce a este stack antes de usarse:
+The AeroPass backend MUST be built exclusively on the following stack. Any reference document
+written for AWS/Next.js is translated to this stack before being used:
 
-| Responsabilidad | Tecnología obligatoria | Reemplaza a |
+| Responsibility | Mandatory technology | Replaces |
 |---|---|---|
-| Lenguaje / framework | Python 3.11+ con FastAPI | Next.js ("Route Handler" → *path operation* de FastAPI) |
-| Base de datos relacional | Neon Postgres | Aurora / RDS Postgres (modelo y SQL sin cambios) |
-| Almacenamiento de medios (selfies, documentos) | Vercel Blob | S3 |
-| Mensajería asíncrona | Upstash QStash (entrega HTTP con reintentos) | EventBridge / SQS |
-| Caché rápida / uso único del QR | Upstash Redis | ElastiCache |
-| Autenticación | Clerk, como dependencia/middleware de FastAPI | Cognito |
-| Despliegue | Vercel, runtime Python serverless | Lambda / API Gateway |
-| Observabilidad | OpenTelemetry + Sentry (ver Principio VI) | CloudWatch / X-Ray |
+| Language / framework | Python 3.11+ with FastAPI | Next.js ("Route Handler" → FastAPI *path operation*) |
+| Relational database | Neon Postgres | Aurora / RDS Postgres (model and SQL unchanged) |
+| Media storage (selfies, documents) | Vercel Blob | S3 |
+| Asynchronous messaging | Upstash QStash (HTTP delivery with retries) | EventBridge / SQS |
+| Fast cache / QR single use | Upstash Redis | ElastiCache |
+| Authentication | Clerk, as a FastAPI dependency/middleware | Cognito |
+| Deployment | Vercel, serverless Python runtime | Lambda / API Gateway |
+| Observability | OpenTelemetry + Sentry (see Principle VI) | CloudWatch / X-Ray |
 
-Reglas derivadas:
+Derived rules:
 
-- No existe un API Gateway separado: cada endpoint de FastAPI MUST aplicar sus propias
-  validaciones (autenticación Clerk, autorización, validación de entrada).
-- QStash es entrega HTTP punto a punto con reintentos, NO pub-sub por patrones; los
-  consumidores MUST ser endpoints HTTP idempotentes.
-- El código MUST NOT asumir que el proceso permanece vivo entre peticiones. Se espera
-  arranque en frío (al menos en la primera llamada del día); ningún estado de negocio
-  puede residir solo en memoria del proceso.
+- There is no separate API Gateway: each FastAPI endpoint MUST apply its own validations (Clerk
+  authentication, authorization, input validation).
+- QStash is point-to-point HTTP delivery with retries, NOT pattern-based pub-sub; consumers MUST
+  be idempotent HTTP endpoints.
+- Code MUST NOT assume the process stays alive between requests. Cold starts are expected (at
+  least on the first call of the day); no business state may live only in process memory.
 
-**Rationale:** el equipo despliega en Vercel con servicios gestionados; fijar el stack
-evita traducciones ambiguas desde la arquitectura de referencia AWS.
+**Rationale:** the team deploys on Vercel with managed services; fixing the stack avoids
+ambiguous translations from the AWS reference architecture.
 
-### II. Alcance Delimitado con Puntos de Extensión
+### II. Bounded Scope with Extension Points
 
-Este repo implementa ÚNICAMENTE:
+This repo implements ONLY:
 
-1. **Registro** — escaneo de documento de identidad → endpoint `identity` → Neon Postgres.
-2. **Verificación biométrica** — captura de selfie → endpoint `biometrics` → Vercel Blob +
-   proveedor de visión externo por HTTP, o verificación WASM en cliente con doble-check
-   obligatorio en servidor.
-3. **Creación de identidad digital** — evento publicado vía QStash tras verificación exitosa.
-4. **Generación del QR dinámico** — endpoint `passes` → Upstash Redis (token de uso único)
-   + QStash.
+1. **Registration** — identity document scan → `identity` endpoint → Neon Postgres.
+2. **Biometric verification** — selfie capture → `biometrics` endpoint → Vercel Blob + external
+   vision provider over HTTP, or WASM verification on the client with a mandatory double-check on
+   the server.
+3. **Digital identity creation** — event published via QStash after a successful verification.
+4. **Dynamic QR generation** — `passes` endpoint → Upstash Redis (single-use token) + QStash.
 
-Fuera de alcance en este ciclo (a cargo de otros compañeros): validación en checkpoint
-(endpoint `validate`), consola del agente humano y cola de escalamiento, observabilidad
-completa, e integración con aerolínea/GDS (endpoint `flights`).
+Out of scope in this cycle (handled by other teammates): checkpoint validation (`validate`
+endpoint), human agent console and escalation queue, full observability, and airline/GDS
+integration (`flights` endpoint).
 
-- El código fuera de alcance MUST NOT implementarse aquí.
-- El diseño MUST dejar interfaces abstractas y contratos de eventos definidos para que
-  esas partes se conecten después sin refactorizar el código existente.
+- Out-of-scope code MUST NOT be implemented here.
+- The design MUST leave abstract interfaces and defined event contracts so those parts can be
+  plugged in later without refactoring the existing code.
 
-**Rationale:** el trabajo se reparte entre equipos; los contratos estables permiten
-integrar sin bloqueos mutuos.
+**Rationale:** the work is split between teams; stable contracts allow integration without
+mutual blocking.
 
-### III. SOLID en Servicios (NO NEGOCIABLE)
+### III. SOLID in Services (NON-NEGOTIABLE)
 
-- Cada clase de servicio MUST tener una única responsabilidad.
-- Las dependencias MUST inyectarse por interfaz/abstracción (vía `Depends` de FastAPI o
-  constructor); la lógica de negocio MUST NOT instanciar a mano clientes ni adaptadores
-  concretos.
-- Añadir un nuevo proveedor, estado o paso de verificación MUST lograrse agregando código
-  nuevo, no modificando las clases existentes (abierto/cerrado).
+- Each service class MUST have a single responsibility.
+- Dependencies MUST be injected by interface/abstraction (via FastAPI `Depends` or the
+  constructor); business logic MUST NOT instantiate concrete clients or adapters by hand.
+- Adding a new provider, state or verification step MUST be achieved by adding new code, not by
+  modifying existing classes (open/closed).
 
-**Rationale:** permite sustituir proveedores (reales ↔ mock) y conectar las partes fuera
-de alcance sin tocar el núcleo.
+**Rationale:** allows swapping providers (real ↔ mock) and plugging in the out-of-scope parts
+without touching the core.
 
-### IV. DRY: Reglas de Negocio con Fuente Única
+### IV. DRY: Business Rules with a Single Source
 
-- Ninguna regla de negocio (estados y transiciones de la credencial, validación de
-  firma, expiración del QR, reglas RN-xx) MUST repetirse en más de un lugar.
-- Cada regla vive en un único servicio u objeto de dominio y todo lo demás lo consume.
+- No business rule (credential states and transitions, signature validation, QR expiration,
+  RN-xx rules) MUST be repeated in more than one place.
+- Each rule lives in a single service or domain object and everything else consumes it.
 
-**Rationale:** una regla duplicada diverge; en un sistema de acceso a aeropuerto eso es
-un fallo de seguridad.
+**Rationale:** a duplicated rule diverges; in an airport access system that is a security flaw.
 
-### V. Circuit Breaker en Toda Dependencia Externa Inestable
+### V. Circuit Breaker on Every Unstable External Dependency
 
-- Toda llamada a un servicio externo de latencia variable o inestable — proveedor de
-  visión biométrica, API de aerolínea/GDS, QStash — MUST pasar por un circuit breaker con
-  timeout explícito.
-- Ante fallos repetidos el circuito MUST abrirse y el sistema MUST responder con un
-  fallback o degradación controlada (p. ej. estado "verificación pendiente", error
-  explícito reintentable) en lugar de bloquearse esperando.
-- El estado del circuito MUST NOT depender solo de memoria del proceso si eso lo anula
-  bajo arranques en frío; cuando sea relevante se persiste en Upstash Redis.
+- Every call to an external service with variable or unstable latency — biometric vision
+  provider, airline/GDS API, QStash — MUST go through a circuit breaker with an explicit timeout.
+- On repeated failures the circuit MUST open and the system MUST respond with a fallback or
+  controlled degradation (e.g. "verification pending" status, explicit retryable error) instead
+  of blocking while waiting.
+- The circuit state MUST NOT depend only on process memory if that defeats it under cold starts;
+  when relevant it is persisted in Upstash Redis.
 
-**Rationale:** en serverless una espera colgada consume el tiempo de ejecución y degrada
-toda la experiencia del pasajero.
+**Rationale:** in serverless a hung wait consumes execution time and degrades the whole passenger
+experience.
 
-### VI. Observabilidad Habilitada, No Implementada Aquí
+### VI. Observability Enabled, Not Implemented Here
 
-- La observabilidad completa (OpenTelemetry + Sentry, métricas técnicas/de negocio,
-  simulación de fallos) es responsabilidad de otro equipo.
-- Este backend MUST exponer los hooks necesarios (spans alrededor de cada paso del
-  pipeline y de cada llamada externa, puntos de emisión de métricas) sin que su ausencia
-  bloquee la implementación funcional.
+- Full observability (OpenTelemetry + Sentry, technical/business metrics, failure simulation) is
+  another team's responsibility.
+- This backend MUST expose the necessary hooks (spans around each pipeline step and each external
+  call, metric emission points) without their absence blocking the functional implementation.
 
-**Rationale:** desacopla el avance de este equipo del de observabilidad sin perder
-trazabilidad futura.
+**Rationale:** decouples this team's progress from the observability team's without losing future
+traceability.
 
-## Patrones de Diseño Obligatorios
+## Mandatory Design Patterns
 
-Los siguientes patrones MUST aplicarse donde se indica. "Documentado" significa que la
-interfaz o el contrato se define en este repo aunque la implementación completa dependa
-de una parte fuera de alcance.
+The following patterns MUST be applied where indicated. "Documented" means that the interface or
+contract is defined in this repo even though the full implementation depends on an out-of-scope
+part.
 
-**Creacionales**
+**Creational**
 
-- **Factory / Abstract Factory:** instanciación de adaptadores de proveedor
-  (`VisionProviderAdapter`, `MockBiometricAdapter`, `AirlineApiAdapter`) sin acoplar el
-  servicio principal a una implementación concreta.
-- **Builder:** construcción paso a paso de la `CredencialAcceso` (QR) — pasajero, vuelo,
-  permisos, firma digital, expiración de 30–60 s. El builder MUST validar cada regla antes
-  de emitir; una credencial incompleta o inválida MUST NOT poder construirse.
-- **Singleton:** clientes de Upstash Redis, pool de Neon Postgres y cliente de Vercel
-  Blob — una instancia reutilizada por proceso, nunca una por petición.
+- **Factory / Abstract Factory:** instantiation of provider adapters (`VisionProviderAdapter`,
+  `MockBiometricAdapter`, `AirlineApiAdapter`) without coupling the main service to a concrete
+  implementation.
+- **Builder:** step-by-step construction of the `CredencialAcceso` (QR) — passenger, flight,
+  permissions, digital signature, 30–60 s expiration. The builder MUST validate every rule before
+  issuing; an incomplete or invalid credential MUST NOT be buildable.
+- **Singleton:** Upstash Redis clients, Neon Postgres pool and Vercel Blob client — one instance
+  reused per process, never one per request.
 
-**Estructurales**
+**Structural**
 
-- **Adapter:** capa de integración con proveedores externos heterogéneos (visión,
-  aerolíneas) que traduce su formato al modelo de dominio unificado (`Tiquete`, `Vuelo`);
-  ningún detalle externo MUST filtrarse al núcleo.
-- **Facade:** `IdentityVerificationFacade` con la interfaz
-  `verify_and_create_identity(pasajero, doc, selfie)`, que oculta el pipeline documento →
-  liveness → comparación → creación de identidad.
-- **Proxy:** `RedisVerificationProxy` intercepta la verificación rápida antes de tocar
-  Neon Postgres para mantener baja la latencia.
-- **Decorator:** envuelve la lógica base de autorización con capacidades adicionales
-  (métrica, traza de auditoría, notificación) sin modificar la función base.
+- **Adapter:** integration layer with heterogeneous external providers (vision, airlines) that
+  translates their format into the unified domain model (`Tiquete`, `Vuelo`); no external detail
+  MUST leak into the core.
+- **Facade:** `IdentityVerificationFacade` with the interface
+  `verify_and_create_identity(pasajero, doc, selfie)`, which hides the pipeline document →
+  liveness → comparison → identity creation.
+- **Proxy:** `RedisVerificationProxy` intercepts the fast verification before touching Neon
+  Postgres to keep latency low.
+- **Decorator:** wraps the base authorization logic with additional capabilities (metrics, audit
+  trail, notification) without modifying the base function.
 
-**Comportamentales**
+**Behavioral**
 
-- **Strategy:** alternancia entre validación en línea y modo contingencia/offline sin
-  tocar el código cliente (documentado; aplica al checkpoint).
-- **Observer / Event-driven vía QStash:** los eventos `credencial.emitida` y
-  `validacion.fallida` se publican y los interesados (auditoría, escalamiento) reaccionan
-  sin acoplamiento directo. Los esquemas de evento MUST estar versionados y definidos en
-  este repo.
-- **State:** la `CredencialAcceso` vive en los estados `EMITIDA`, `ACTIVA`, `CONSUMIDA`,
-  `EXPIRADA`, `REVOCADA`. Las transiciones inválidas (p. ej. RN-06: una credencial ya
-  `CONSUMIDA` no puede volver a consumirse) MUST encapsularse en el propio objeto de
-  estado, no en condicionales dispersos.
-- **Chain of Responsibility:** cadena de verificación previa a autorizar — token válido
-  → rate limit → vuelo no cancelado (RN-07) → firma del QR válida → uso único respetado
-  (RN-06). Documentada para el checkpoint; su implementación completa depende de la parte
-  fuera de alcance.
+- **Strategy:** switching between online validation and contingency/offline mode without touching
+  the client code (documented; applies to the checkpoint).
+- **Observer / Event-driven via QStash:** the `credencial.emitida` and `validacion.fallida` events
+  are published and interested parties (audit, escalation) react without direct coupling. Event
+  schemas MUST be versioned and defined in this repo.
+- **State:** the `CredencialAcceso` lives in the states `EMITIDA`, `ACTIVA`, `CONSUMIDA`,
+  `EXPIRADA`, `REVOCADA`. Invalid transitions (e.g. RN-06: an already `CONSUMIDA` credential
+  cannot be consumed again) MUST be encapsulated in the state object itself, not in scattered
+  conditionals.
+- **Chain of Responsibility:** verification chain before authorizing — valid token → rate limit →
+  flight not cancelled (RN-07) → valid QR signature → single use respected (RN-06). Documented for
+  the checkpoint; its full implementation depends on the out-of-scope part.
 
-## Flujo de Desarrollo y Puertas de Calidad
+## Development Workflow and Quality Gates
 
-- Toda especificación y plan (`/speckit-specify`, `/speckit-plan`) MUST pasar el
-  "Constitution Check": stack del Principio I, alcance del Principio II, y patrones
-  aplicables de la sección anterior.
-- Toda revisión de código MUST verificar: inyección de dependencias por abstracción
-  (III), ausencia de reglas duplicadas (IV), circuit breaker y timeout en cada llamada
-  externa (V), y hooks de instrumentación presentes (VI).
-- Los adaptadores externos MUST tener una implementación mock intercambiable vía Factory
-  para pruebas locales sin credenciales reales.
-- Cualquier desviación de un principio o patrón MUST justificarse por escrito en la
-  sección "Complexity Tracking" del plan correspondiente.
+- Every specification and plan (`/speckit-specify`, `/speckit-plan`) MUST pass the "Constitution
+  Check": stack from Principle I, scope from Principle II, and applicable patterns from the
+  previous section.
+- Every code review MUST verify: dependency injection by abstraction (III), absence of duplicated
+  rules (IV), circuit breaker and timeout on every external call (V), and instrumentation hooks
+  present (VI).
+- External adapters MUST have a mock implementation swappable via Factory for local tests without
+  real credentials.
+- Any deviation from a principle or pattern MUST be justified in writing in the "Complexity
+  Tracking" section of the corresponding plan.
 
 ## Governance
 
-- Esta constitución prevalece sobre cualquier otra práctica o documento de referencia
-  del proyecto (incluida la arquitectura de referencia AWS/Next.js).
-- **Enmiendas:** se proponen mediante `/speckit-constitution`, se documentan en el Sync
-  Impact Report al inicio de este archivo y requieren aprobación del equipo antes de
-  hacer merge.
-- **Versionado semántico:** MAJOR para eliminación o redefinición incompatible de
-  principios; MINOR para principios o secciones nuevas o guía materialmente ampliada;
-  PATCH para aclaraciones y redacción.
-- **Cumplimiento:** cada PR y cada plan MUST verificar el cumplimiento; los cambios de
-  alcance (p. ej. incorporar `validate` o `flights` a este repo) requieren enmienda del
-  Principio II.
+- This constitution prevails over any other practice or reference document of the project
+  (including the AWS/Next.js reference architecture).
+- **Amendments:** proposed via `/speckit-constitution`, documented in the Sync Impact Report at
+  the top of this file and require team approval before merging.
+- **Semantic versioning:** MAJOR for removal or incompatible redefinition of principles; MINOR for
+  new principles or sections or materially expanded guidance; PATCH for clarifications and
+  wording.
+- **Compliance:** every PR and every plan MUST verify compliance; scope changes (e.g. bringing
+  `validate` or `flights` into this repo) require an amendment of Principle II.
 
 **Version**: 1.0.0 | **Ratified**: 2026-09-23 | **Last Amended**: 2026-09-23

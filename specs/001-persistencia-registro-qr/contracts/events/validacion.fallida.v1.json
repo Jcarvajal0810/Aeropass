@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aeropass/events/validacion.fallida/v1",
   "title": "validacion.fallida v1",
-  "description": "Contrato definido en este repo (constitución, patrón Observer) y PRODUCIDO por el módulo de checkpoint (fuera del alcance de la feature 001). Se publica vía QStash cuando una CredencialAcceso es rechazada en el checkpoint. Entrega al menos una vez: los consumidores (auditoría, escalamiento) deben deduplicar por `id`. No contiene datos del documento ni imágenes.",
+  "description": "Contract defined in this repo (constitution, Observer pattern) and PRODUCED by the checkpoint module (out of scope for feature 001). Published via QStash when a CredencialAcceso is rejected at the checkpoint. At-least-once delivery: consumers (audit, escalation) must deduplicate by `id`. Contains no document data or images.",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "tipo", "version", "ocurrido_at", "datos"],
   "properties": {
-    "id": { "type": "string", "format": "uuid", "description": "Id único del evento" },
+    "id": { "type": "string", "format": "uuid", "description": "Unique event id" },
     "tipo": { "const": "validacion.fallida" },
     "version": { "const": 1 },
     "ocurrido_at": { "type": "string", "format": "date-time" },
@@ -19,7 +19,7 @@
         "credencial_id": {
           "type": ["string", "null"],
           "format": "uuid",
-          "description": "jti de la credencial; null si el token no pudo decodificarse"
+          "description": "Credential jti; null if the token could not be decoded"
         },
         "pasajero_id": { "type": ["string", "null"], "format": "uuid" },
         "codigo_vuelo": { "type": ["string", "null"] },
@@ -35,9 +35,9 @@
             "LIMITE_EXCEDIDO",
             "NO_ENCONTRADA"
           ],
-          "description": "Eslabón de la cadena de validación que rechazó (RN-06 → YA_CONSUMIDA, RN-07 → VUELO_CANCELADO)"
+          "description": "Link of the validation chain that rejected it (RN-06 → YA_CONSUMIDA, RN-07 → VUELO_CANCELADO)"
         },
-        "checkpoint_id": { "type": "string", "description": "Identificador del punto de control" },
+        "checkpoint_id": { "type": "string", "description": "Checkpoint identifier" },
         "modo": { "type": "string", "enum": ["EN_LINEA", "CONTINGENCIA"], "default": "EN_LINEA" }
       }
     }

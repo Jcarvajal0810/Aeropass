@@ -2,7 +2,7 @@
 
 ``Container`` builds every collaborator lazily (``cached_property``) so a cold start only pays
 for what the request uses. ``AEROPASS_ADAPTERS=fake`` swaps the external services (Clerk, Blob,
-Redis, QStash) for in-memory doubles; Postgres is always real (plan.md "Modos de adaptadores").
+Redis, QStash) for in-memory doubles; Postgres is always real (plan.md "Adapter modes").
 Tests may assign any attribute directly to override it.
 """
 

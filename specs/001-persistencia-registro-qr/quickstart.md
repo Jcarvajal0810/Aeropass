@@ -1,112 +1,112 @@
-# Quickstart: validar la feature 001 de punta a punta
+# Quickstart: validate feature 001 end to end
 
-Guía para comprobar que el flujo registro → selfie → identidad → QR funciona. Los contratos
-están en [contracts/openapi.yaml](contracts/openapi.yaml) y el modelo en
-[data-model.md](data-model.md); aquí solo se describen los pasos y los resultados esperados.
+Guide to check that the registration → selfie → identity → QR flow works. The contracts are in
+[contracts/openapi.yaml](contracts/openapi.yaml) and the model in
+[data-model.md](data-model.md); only the steps and the expected results are described here.
 
-## Prerrequisitos
+## Prerequisites
 
-- Python 3.11+ y [`uv`](https://docs.astral.sh/uv/).
-- Postgres local para pruebas (`docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16`)
-  o una rama de Neon.
-- Para el entorno real: proyecto en Vercel con Neon, un Blob store **privado**, una base de
-  Upstash Redis y QStash conectados, y una aplicación de Clerk.
+- Python 3.11+ and [`uv`](https://docs.astral.sh/uv/).
+- Local Postgres for tests (`docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16`)
+  or a Neon branch.
+- For the real environment: a Vercel project with Neon, a **private** Blob store, an Upstash Redis
+  database and QStash connected, and a Clerk application.
 
-## Variables de entorno
+## Environment variables
 
-| Variable | Uso |
+| Variable | Use |
 |---|---|
 | `DATABASE_URL` | Neon pooled (`postgresql+asyncpg://…-pooler…`) |
-| `DATABASE_URL_DIRECT` | Neon directa, solo para Alembic |
+| `DATABASE_URL_DIRECT` | Neon direct, only for Alembic |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Redis |
 | `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY` | QStash |
-| `QSTASH_EVENTS_URL_GROUP` | URL group de destino de eventos (`aeropass-eventos`) |
+| `QSTASH_EVENTS_URL_GROUP` | Destination URL group for events (`aeropass-eventos`) |
 | `CLERK_SECRET_KEY` | Clerk |
-| `QR_SIGNING_PRIVATE_KEY`, `QR_SIGNING_KID` | Firma Ed25519 del QR |
-| `BIOMETRIC_PROVIDER` | `mock` (local/pruebas) o `vision` |
-| `BIOMETRIC_LIVENESS_THRESHOLD`, `BIOMETRIC_MATCH_THRESHOLD` | Por defecto `0.80` |
-| `QR_TTL_SECONDS` | 30–60, por defecto `45` |
+| `QR_SIGNING_PRIVATE_KEY`, `QR_SIGNING_KID` | Ed25519 signature of the QR |
+| `BIOMETRIC_PROVIDER` | `mock` (local/tests) or `vision` |
+| `BIOMETRIC_LIVENESS_THRESHOLD`, `BIOMETRIC_MATCH_THRESHOLD` | Default `0.80` |
+| `QR_TTL_SECONDS` | 30–60, default `45` |
 
-Para desarrollo local sin servicios externos: `AEROPASS_ADAPTERS=fake` reemplaza Blob, Redis,
-QStash y Clerk por dobles en memoria (el token de Clerk se simula con `Authorization: Bearer
-test:<user_id>`; la firma de QStash con `Upstash-Signature: test`). **Postgres sigue siendo real**
-(`DATABASE_URL` local o rama de Neon) en ambos modos.
+For local development without external services: `AEROPASS_ADAPTERS=fake` replaces Blob, Redis,
+QStash and Clerk with in-memory doubles (the Clerk token is simulated with `Authorization: Bearer
+test:<user_id>`; the QStash signature with `Upstash-Signature: test`). **Postgres is still real**
+(local `DATABASE_URL` or a Neon branch) in both modes.
 
-## Configuración
+## Setup
 
 ```bash
 uv sync
-uv run alembic upgrade head          # crea tablas, enums, índices parciales y trigger
-uv run python -m aeropass.tools.gen_signing_key   # imprime un par Ed25519 para .env
+uv run alembic upgrade head          # creates tables, enums, partial indexes and trigger
+uv run python -m aeropass.tools.gen_signing_key   # prints an Ed25519 pair for .env
 uv run python -m aeropass.tools.make_mock_images ./mock-images   # ok/spoof/other/timeout/documento .jpg
 uv run uvicorn aeropass.main:app --reload
 ```
 
-## Pruebas automáticas
+## Automated tests
 
 ```bash
-uv run pytest tests/unit                     # dominio: State, Builder, reglas de intentos
-uv run pytest tests/integration              # requiere TEST_DATABASE_URL
-uv run pytest tests/contract                 # respuestas vs openapi.yaml, eventos vs JSON Schema
+uv run pytest tests/unit                     # domain: State, Builder, attempt rules
+uv run pytest tests/integration              # requires TEST_DATABASE_URL
+uv run pytest tests/contract                 # responses vs openapi.yaml, events vs JSON Schema
 ```
 
-Esperado: todo en verde. Pruebas clave:
+Expected: all green. Key tests:
 
-| Prueba | Demuestra |
+| Test | Demonstrates |
 |---|---|
-| `test_credential_states.py` | Tabla de transiciones completa; `CONSUMIDA → CONSUMIDA` rechazada (RN-06) |
-| `test_credential_builder.py` | No se construye sin firma, vuelo, permisos o con TTL fuera de 30–60 s |
-| `test_concurrent_consume.py` | 50 consumos simultáneos del mismo `jti` → exactamente 1 aceptado (SC-004) |
-| `test_concurrent_passes.py` | 2 emisiones simultáneas → 1 `ACTIVA`, 1 `REVOCADA` |
-| `test_outbox_recovery.py` | Con QStash caído la identidad se crea; al recuperarse el dispatcher entrega el evento en < 5 min simulados (SC-006) |
-| `test_rejected_transition_persisted.py` | Una transición rechazada queda registrada aunque la operación falle (FR-019) |
-| `test_circuit_breaker.py` | 5 fallos abren el circuito; la siguiente selfie responde `NO_CONCLUYENTE` al instante |
-| `test_transitions_immutable.py` | `UPDATE`/`DELETE` sobre `transiciones_credencial` falla |
+| `test_credential_states.py` | Full transition table; `CONSUMIDA → CONSUMIDA` rejected (RN-06) |
+| `test_credential_builder.py` | Cannot be built without signature, flight, permissions or with a TTL outside 30–60 s |
+| `test_concurrent_consume.py` | 50 simultaneous consumptions of the same `jti` → exactly 1 accepted (SC-004) |
+| `test_concurrent_passes.py` | 2 simultaneous issuances → 1 `ACTIVA`, 1 `REVOCADA` |
+| `test_outbox_recovery.py` | With QStash down the identity is created; on recovery the dispatcher delivers the event in < 5 simulated min (SC-006) |
+| `test_rejected_transition_persisted.py` | A rejected transition is recorded even if the operation fails (FR-019) |
+| `test_circuit_breaker.py` | 5 failures open the circuit; the next selfie responds `NO_CONCLUYENTE` instantly |
+| `test_transitions_immutable.py` | `UPDATE`/`DELETE` on `transiciones_credencial` fails |
 
-## Recorrido manual (con `AEROPASS_ADAPTERS=fake` y `BIOMETRIC_PROVIDER=mock`)
+## Manual walkthrough (with `AEROPASS_ADAPTERS=fake` and `BIOMETRIC_PROVIDER=mock`)
 
-El mock decide por un marcador incrustado en los bytes de la selfie (`MOCK:ok`, `MOCK:spoof`,
-`MOCK:other`, `MOCK:timeout`); las imágenes generadas por `make_mock_images` ya lo llevan:
-`ok.jpg` → éxito, `spoof.jpg` → falla prueba de vida, `other.jpg` → falla comparación,
-`timeout.jpg` → simula caída del proveedor (espera 4 s).
+The mock decides based on a marker embedded in the selfie bytes (`MOCK:ok`, `MOCK:spoof`,
+`MOCK:other`, `MOCK:timeout`); the images generated by `make_mock_images` already carry it:
+`ok.jpg` → success, `spoof.jpg` → fails liveness, `other.jpg` → fails face match,
+`timeout.jpg` → simulates a provider outage (waits 4 s).
 
-1. **Registro** — `POST /v1/identity` (multipart) con los datos de un documento vigente y
+1. **Registration** — `POST /v1/identity` (multipart) with the data of a valid document and
    `foto_documento=@mock-images/documento.jpg`.
-   Esperado: `201`, `estado = PENDIENTE_VERIFICACION`, la foto existe en el store de medios fake y
-   `pasajeros` solo guarda su referencia. Repetir: `200` con el mismo `id`.
-   Con `fecha_vencimiento` pasada: `422 DOCUMENTO_VENCIDO`. Sin foto: `422 DATOS_INVALIDOS`.
-2. **Selfie fallida** — `POST /v1/biometrics/verifications` con `spoof.jpg`.
-   Esperado: `FALLIDO`, `motivo_fallo = LIVENESS`, `intentos_restantes = 2`.
-3. **Proveedor caído** — enviar `timeout.jpg` 5 veces.
-   Esperado: `NO_CONCLUYENTE`; `intentos_restantes` sigue en 2; a partir del 6.º envío la
-   respuesta llega en menos de 1 s (circuito abierto).
-4. **Selfie exitosa** — esperar 30 s y enviar `ok.jpg`.
-   Esperado: `EXITOSO`, `estado_pasajero = VERIFICADO`, `identidad_id` presente. En la base:
-   una fila en `outbox_eventos` en `ENTREGADO` (o `PENDIENTE` si el fake de QStash está en modo
-   caída). En el store de medios: el blob existe y `intentos_verificacion` solo guarda la URL.
-5. **Pase** — `POST /v1/passes` con `{"codigo_vuelo": "AV9380"}`.
-   Esperado: `201`, `expira_at - emitida_at` entre 30 y 60 s, `token` verificable con
-   `/.well-known/jwks.json`. `GET /v1/passes/{id}` muestra historial `EMITIDA → ACTIVA`.
-6. **Renovación** — repetir el paso 5. Esperado: el pase anterior queda `REVOCADA` (motivo
-   `RENOVACION`) y su clave `qr:{jti}` ya no existe.
-7. **Expiración** — esperar a que venza el pase y consultar `GET /v1/passes/{id}`.
-   Esperado: `EXPIRADA`.
-8. **Límite** — emitir 31 pases en menos de un minuto. Esperado: el 31.º responde
-   `429 LIMITE_EMISION_EXCEDIDO` con `Retry-After`.
+   Expected: `201`, `estado = PENDIENTE_VERIFICACION`, the photo exists in the fake media store and
+   `pasajeros` only stores its reference. Repeat: `200` with the same `id`.
+   With a past `fecha_vencimiento`: `422 DOCUMENTO_VENCIDO`. Without a photo: `422 DATOS_INVALIDOS`.
+2. **Failed selfie** — `POST /v1/biometrics/verifications` with `spoof.jpg`.
+   Expected: `FALLIDO`, `motivo_fallo = LIVENESS`, `intentos_restantes = 2`.
+3. **Provider down** — send `timeout.jpg` 5 times.
+   Expected: `NO_CONCLUYENTE`; `intentos_restantes` stays at 2; from the 6th submission on the
+   response arrives in less than 1 s (circuit open).
+4. **Successful selfie** — wait 30 s and send `ok.jpg`.
+   Expected: `EXITOSO`, `estado_pasajero = VERIFICADO`, `identidad_id` present. In the database:
+   one row in `outbox_eventos` in `ENTREGADO` (or `PENDIENTE` if the QStash fake is in outage
+   mode). In the media store: the blob exists and `intentos_verificacion` only stores the URL.
+5. **Pass** — `POST /v1/passes` with `{"codigo_vuelo": "AV9380"}`.
+   Expected: `201`, `expira_at - emitida_at` between 30 and 60 s, `token` verifiable with
+   `/.well-known/jwks.json`. `GET /v1/passes/{id}` shows the history `EMITIDA → ACTIVA`.
+6. **Renewal** — repeat step 5. Expected: the previous pass becomes `REVOCADA` (reason
+   `RENOVACION`) and its `qr:{jti}` key no longer exists.
+7. **Expiration** — wait for the pass to expire and query `GET /v1/passes/{id}`.
+   Expected: `EXPIRADA`.
+8. **Limit** — issue 31 passes in less than a minute. Expected: the 31st responds
+   `429 LIMITE_EMISION_EXCEDIDO` with `Retry-After`.
 
-## Validación en Vercel
+## Validation on Vercel
 
 ```bash
 vercel deploy                        # preview
 vercel env pull .env.local
 ```
 
-- Crear el schedule de QStash que llama a `POST <deploy>/internal/outbox/dispatch` cada minuto.
-- Repetir los pasos 1–6 con un token real de Clerk y `BIOMETRIC_PROVIDER=mock`.
-- Comprobar que la URL del blob devuelve `401/403` sin el token del store (FR-010).
-- Medir la emisión de pases con la instancia caliente:
+- Create the QStash schedule that calls `POST <deploy>/internal/outbox/dispatch` every minute.
+- Repeat steps 1–6 with a real Clerk token and `BIOMETRIC_PROVIDER=mock`.
+- Check that the blob URL returns `401/403` without the store token (FR-010).
+- Measure pass issuance with a warm instance:
   `uv run python -m aeropass.tools.bench_passes --base-url <deploy> --tokens tokens.txt --n 200`
-  (`tokens.txt`: un token de Clerk por cuenta de prueba ya verificada). Esperado: p95 < 1 s
-  (SC-002). El script reparte las emisiones entre las cuentas para no chocar con el límite de
-  30/min.
+  (`tokens.txt`: one Clerk token per already verified test account). Expected: p95 < 1 s
+  (SC-002). The script spreads the issuances across the accounts to avoid hitting the
+  30/min limit.

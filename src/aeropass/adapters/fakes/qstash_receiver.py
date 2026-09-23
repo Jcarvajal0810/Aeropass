@@ -8,4 +8,4 @@ class FakeQStashVerifier:
 
     async def verify(self, request: Request) -> None:
         if request.headers.get("upstash-signature") != "test":
-            raise NoAutenticado("Firma de QStash inválida")
+            raise NoAutenticado("Invalid QStash signature")

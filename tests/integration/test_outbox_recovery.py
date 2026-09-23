@@ -1,4 +1,4 @@
-"""US3 — el evento no se pierde con QStash caído y llega < 5 min tras la recuperación (SC-006)."""
+"""US3 — the event is not lost while QStash is down and arrives < 5 min after recovery (SC-006)."""
 
 import pytest
 from sqlalchemy import text

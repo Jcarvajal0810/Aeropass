@@ -1,7 +1,7 @@
 [project]
 name = "aeropass"
 version = "0.1.0"
-description = "AeroPass backend: registro, verificación biométrica, identidad digital y QR dinámico"
+description = "AeroPass backend: registration, biometric verification, digital identity and dynamic QR"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -48,7 +48,7 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC", "SIM"]
-ignore = ["B008"]  # FastAPI Depends() en valores por defecto
+ignore = ["B008"]  # FastAPI Depends() in default values
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

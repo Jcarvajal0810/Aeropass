@@ -1,4 +1,4 @@
-"""US3 — IdentidadDigital + outbox en la misma transacción (spec US3 scenarios 1 y 3)."""
+"""US3 — IdentidadDigital + outbox in the same transaction (spec US3 scenarios 1 and 3)."""
 
 import pytest
 from sqlalchemy import text

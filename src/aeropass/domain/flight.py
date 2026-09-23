@@ -10,5 +10,5 @@ _CODIGO_VUELO = re.compile(r"^[A-Z0-9]{2}[0-9]{1,4}[A-Z]?$")
 def normalizar_codigo_vuelo(codigo: str | None) -> str:
     normalizado = (codigo or "").strip().upper()
     if not _CODIGO_VUELO.match(normalizado):
-        raise DatosInvalidos("Código de vuelo inválido", detalles={"campos": ["codigo_vuelo"]})
+        raise DatosInvalidos("Invalid flight code", detalles={"campos": ["codigo_vuelo"]})
     return normalizado
