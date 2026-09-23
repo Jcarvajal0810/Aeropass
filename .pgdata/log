@@ -2,3 +2,35 @@
 2026-09-23 05:47:46.758 GMT [18948] LOG:  listening on IPv4 address "127.0.0.1", port 65036
 2026-09-23 05:47:46.883 GMT [34168] LOG:  database system was shut down at 2026-09-23 05:47:43 GMT
 2026-09-23 05:47:46.979 GMT [18948] LOG:  database system is ready to accept connections
+2026-09-23 05:52:46.833 GMT [27116] LOG:  checkpoint starting: time
+2026-09-23 05:54:21.580 GMT [27116] LOG:  checkpoint complete: wrote 928 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=94.392 s, sync=0.333 s, total=94.748 s; sync files=437, longest=0.005 s, average=0.001 s; distance=4225 kB, estimate=4225 kB; lsn=0/1908CB0, redo lsn=0/18A2680
+2026-09-23 05:57:46.835 GMT [27116] LOG:  checkpoint starting: time
+2026-09-23 05:57:58.829 GMT [27116] LOG:  checkpoint complete: wrote 113 buffers (0.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=11.324 s, sync=0.405 s, total=11.995 s; sync files=526, longest=0.006 s, average=0.001 s; distance=894 kB, estimate=3892 kB; lsn=0/1994288, redo lsn=0/1981F50
+2026-09-23 06:00:54.754 GMT [22360] ERROR:  duplicate key value violates unique constraint "uq_identidades_digitales_una_activa"
+2026-09-23 06:00:54.754 GMT [22360] DETAIL:  Key (pasajero_id)=(01a0ccda-5034-7ce2-8148-c3315c7e5f9a) already exists.
+2026-09-23 06:00:54.754 GMT [22360] STATEMENT:  insert into identidades_digitales (id, pasajero_id, intento_origen_id, estado, created_at) values ($1, $2, $3, 'ACTIVA', now())
+2026-09-23 06:02:46.901 GMT [27116] LOG:  checkpoint starting: time
+2026-09-23 06:02:58.581 GMT [27116] LOG:  checkpoint complete: wrote 108 buffers (0.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=10.806 s, sync=0.434 s, total=11.680 s; sync files=987, longest=0.005 s, average=0.001 s; distance=1183 kB, estimate=3621 kB; lsn=0/1ABD828, redo lsn=0/1AA9B60
+2026-09-23 06:08:14.778 GMT [2892] ERROR:  duplicate key value violates unique constraint "uq_identidades_digitales_una_activa"
+2026-09-23 06:08:14.778 GMT [2892] DETAIL:  Key (pasajero_id)=(01a0cce1-0728-74a3-b3a2-8d5ea24bf2b1) already exists.
+2026-09-23 06:08:14.778 GMT [2892] STATEMENT:  insert into identidades_digitales (id, pasajero_id, intento_origen_id, estado, created_at) values ($1, $2, $3, 'ACTIVA', now())
+2026-09-23 06:08:31.817 GMT [2892] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-23 06:08:31.817 GMT [2892] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-23 06:08:31.817 GMT [2892] STATEMENT:  update transiciones_credencial set aceptada = not aceptada
+2026-09-23 06:08:32.424 GMT [2892] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-23 06:08:32.424 GMT [2892] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-23 06:08:32.424 GMT [2892] STATEMENT:  delete from transiciones_credencial
+2026-09-23 06:12:46.913 GMT [27116] LOG:  checkpoint starting: time
+2026-09-23 06:13:12.784 GMT [27116] LOG:  checkpoint complete: wrote 193 buffers (1.2%); 1 WAL file(s) added, 0 removed, 0 recycled; write=20.479 s, sync=3.919 s, total=25.872 s; sync files=2304, longest=0.069 s, average=0.002 s; distance=2771 kB, estimate=3536 kB; lsn=0/1D5E870, redo lsn=0/1D5E838
+2026-09-23 06:16:42.729 GMT [15268] LOG:  could not receive data from client: unrecognized winsock error 10054
+2026-09-23 06:17:09.264 GMT [33456] ERROR:  duplicate key value violates unique constraint "uq_identidades_digitales_una_activa"
+2026-09-23 06:17:09.264 GMT [33456] DETAIL:  Key (pasajero_id)=(01a0cce9-2f5c-7c33-b920-1d792ac3265c) already exists.
+2026-09-23 06:17:09.264 GMT [33456] STATEMENT:  insert into identidades_digitales (id, pasajero_id, intento_origen_id, estado, created_at) values ($1, $2, $3, 'ACTIVA', now())
+2026-09-23 06:17:22.686 GMT [33456] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-23 06:17:22.686 GMT [33456] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-23 06:17:22.686 GMT [33456] STATEMENT:  update transiciones_credencial set aceptada = not aceptada
+2026-09-23 06:17:23.161 GMT [33456] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-23 06:17:23.161 GMT [33456] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-23 06:17:23.161 GMT [33456] STATEMENT:  delete from transiciones_credencial
+2026-09-23 06:17:46.109 GMT [27116] LOG:  checkpoint starting: time
+2026-09-23 06:19:42.799 GMT [27116] LOG:  checkpoint complete: wrote 1146 buffers (7.0%); 0 WAL file(s) added, 0 removed, 1 recycled; write=115.631 s, sync=0.717 s, total=116.691 s; sync files=2608, longest=0.004 s, average=0.001 s; distance=6803 kB, estimate=6803 kB; lsn=0/242AC48, redo lsn=0/24035E8

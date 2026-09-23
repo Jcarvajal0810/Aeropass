@@ -6,6 +6,5 @@
       "maxDuration": 30,
       "excludeFiles": "{tests/**,specs/**,migrations/**,.specify/**,mock-images/**}"
     }
-  },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+  }
 }
