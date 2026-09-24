@@ -36,6 +36,17 @@ class VerificationOutcome:
     identidad_id: uuid.UUID | None = None
 
 
+def describe_outcome(outcome: VerificationOutcome) -> dict[str, str | None]:
+    """Audit attributes of a committed verification (spec 002, data-model §2): enums only."""
+    motivo = outcome.intento.motivo_fallo
+    estado = outcome.pasajero.estado_final
+    return {
+        "resultado": outcome.intento.resultado.value,
+        "motivo": motivo.value if motivo else None,
+        "estado": estado.value if estado else None,
+    }
+
+
 class IdentityVerificationFacade:
     def __init__(
         self,
@@ -54,7 +65,7 @@ class IdentityVerificationFacade:
         self._dispatcher = dispatcher
 
     @traced("facade.verify_and_create_identity")
-    @audited(IDENTITY_VERIFICATION)
+    @audited(IDENTITY_VERIFICATION, describe=describe_outcome)
     async def verify_and_create_identity(
         self, pasajero: Pasajero, doc: DocumentoRegistrado, selfie: ImageInput
     ) -> VerificationOutcome:

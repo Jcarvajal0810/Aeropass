@@ -214,14 +214,14 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Tests (primero)
 
-- [ ] T035 [P] [US4] Agregar a `tests/unit/test_passenger.py` pruebas de `Pasajero.estado_final`: `None` en `PENDIENTE_VERIFICACION`, el estado en `VERIFICADO` y en `REQUIERE_REVISION_MANUAL`.
-- [ ] T036 [P] [US4] Escribir `tests/integration/test_verification_telemetry.py`, parte autoservicio: casos del Independent Test. Además, si el `commit` falla (UoW de prueba que lanza en `commit`), no se emite ninguna métrica.
+- [X] T035 [P] [US4] Agregar a `tests/unit/test_passenger.py` pruebas de `Pasajero.estado_final`: `None` en `PENDIENTE_VERIFICACION`, el estado en `VERIFICADO` y en `REQUIERE_REVISION_MANUAL`.
+- [X] T036 [P] [US4] Escribir `tests/integration/test_verification_telemetry.py`, parte autoservicio: casos del Independent Test. Además, si el `commit` falla (UoW de prueba que lanza en `commit`), no se emite ninguna métrica.
 
 ### Implementación
 
-- [ ] T037 [US4] Agregar la propiedad `estado_final -> EstadoPasajero | None` a `Pasajero` en `src/aeropass/domain/passenger.py`. Hace pasar T035.
-- [ ] T038 [US4] Anotar `verify_and_create_identity` en `src/aeropass/services/identity_verification_facade.py` con `@audited("identity.verification", describe=...)`. `describe` devuelve `resultado`, `motivo` y `estado` a partir de `VerificationOutcome`, con valores de enum como texto y `None` cuando no aplican (data-model.md §2). No cambia ninguna otra línea del método.
-- [ ] T039 [US4] Agregar al catálogo la regla `aeropass.pasajero.estado_final` (evento `identity.verification` ok con `estado` presente, atributo `aeropass.estado`). Hace pasar T036 y verifica T008.
+- [X] T037 [US4] Agregar la propiedad `estado_final -> EstadoPasajero | None` a `Pasajero` en `src/aeropass/domain/passenger.py`. Hace pasar T035.
+- [X] T038 [US4] Anotar `verify_and_create_identity` en `src/aeropass/services/identity_verification_facade.py` con `@audited("identity.verification", describe=...)`. `describe` devuelve `resultado`, `motivo` y `estado` a partir de `VerificationOutcome`, con valores de enum como texto y `None` cuando no aplican (data-model.md §2). No cambia ninguna otra línea del método.
+- [X] T039 [US4] Agregar al catálogo la regla `aeropass.pasajero.estado_final` (evento `identity.verification` ok con `estado` presente, atributo `aeropass.estado`). Hace pasar T036 y verifica T008.
 
 **Checkpoint**: autoservicio medible sin consultar la base de datos.
 

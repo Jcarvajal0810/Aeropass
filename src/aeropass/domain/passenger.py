@@ -12,6 +12,7 @@ from aeropass.domain.errors import DatosInvalidos, DocumentoVencido, EstadoNoPer
 from aeropass.domain.images import StoredMedia
 
 MAX_INTENTOS_FALLIDOS = 3
+_ESTADOS_FINALES = frozenset({EstadoPasajero.VERIFICADO, EstadoPasajero.REQUIERE_REVISION_MANUAL})
 
 _SEPARADORES = re.compile(r"[\s.\-]")
 _NUMERO_VALIDO = re.compile(r"^[A-Z0-9]{4,20}$")
@@ -143,6 +144,17 @@ class Pasajero:
                 self.estado = EstadoPasajero.REQUIERE_REVISION_MANUAL
         # NO_CONCLUYENTE: provider unavailable, not the passenger's fault — does not count
         self.updated_at = ahora
+
+    @property
+    def estado_final(self) -> EstadoPasajero | None:
+        """The state if verification has concluded for this passenger, else ``None``.
+
+        Single source of "final state" (KR A1.2 self-service rate, spec 002): a passenger reaches
+        it once, since ``apply_outcome`` only runs from ``PENDIENTE_VERIFICACION``.
+        """
+        if self.estado in _ESTADOS_FINALES:
+            return self.estado
+        return None
 
     @property
     def intentos_restantes(self) -> int:

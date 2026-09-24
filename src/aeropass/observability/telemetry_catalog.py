@@ -85,6 +85,13 @@ class MetricRule:
 METRIC_RULES: tuple[MetricRule, ...] = (
     # US6 — contingency rate per external dependency (KR A2.5).
     MetricRule("aeropass.circuit_breaker.apertura", CIRCUIT_OPENED, frozenset({"dependencia"})),
+    # US4 — self-service rate (KR A1.2): one per passenger reaching a final state.
+    MetricRule(
+        "aeropass.pasajero.estado_final",
+        IDENTITY_VERIFICATION,
+        frozenset({"estado"}),
+        when=lambda data: data.get("outcome") == OUTCOME_OK and data.get("estado") is not None,
+    ),
 )
 
 

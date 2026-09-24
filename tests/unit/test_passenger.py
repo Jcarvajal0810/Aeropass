@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from aeropass.domain.enums import EstadoPasajero, TipoDocumento
+from aeropass.domain.enums import EstadoPasajero, ResultadoIntento, TipoDocumento
 from aeropass.domain.errors import DatosInvalidos, DocumentoVencido
 from aeropass.domain.ids import new_id
 from aeropass.domain.images import StoredMedia
@@ -68,3 +68,34 @@ def test_same_document_comparison():
     p = Pasajero.registrar(id=new_id(), clerk_user_id="u", datos=d, foto=FOTO, ahora=NOW)
     assert p.documento.es_mismo(datos(numero_documento="1020345678"))
     assert not p.documento.es_mismo(datos(numero_documento="999999"))
+
+
+# --- estado_final (spec 002, KR A1.2: single source of "final state") ----------------------
+def _pasajero() -> Pasajero:
+    return Pasajero.registrar(id=new_id(), clerk_user_id="u", datos=datos(), foto=FOTO, ahora=NOW)
+
+
+def test_pending_passenger_has_no_final_state():
+    assert _pasajero().estado_final is None
+
+
+def test_verified_passenger_final_state():
+    p = _pasajero()
+    p.apply_outcome(ResultadoIntento.EXITOSO, NOW)
+    assert p.estado_final is EstadoPasajero.VERIFICADO
+
+
+def test_manual_review_is_a_final_state_reached_on_the_third_failure():
+    p = _pasajero()
+    p.apply_outcome(ResultadoIntento.FALLIDO, NOW)
+    p.apply_outcome(ResultadoIntento.FALLIDO, NOW)
+    assert p.estado_final is None
+    p.apply_outcome(ResultadoIntento.FALLIDO, NOW)
+    assert p.estado_final is EstadoPasajero.REQUIERE_REVISION_MANUAL
+
+
+def test_inconclusive_attempts_never_reach_a_final_state():
+    p = _pasajero()
+    for _ in range(5):
+        p.apply_outcome(ResultadoIntento.NO_CONCLUYENTE, NOW)
+    assert p.estado_final is None
