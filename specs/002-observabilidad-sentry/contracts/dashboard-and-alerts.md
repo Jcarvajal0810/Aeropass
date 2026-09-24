@@ -81,3 +81,6 @@ Todos los correos indican entorno y métrica, sin datos sensibles.
 
 - Security & Privacy: activar "Prevent Storing of IP Addresses" y dejar el Data Scrubbing por defecto.
 - Variables en Vercel (prod): `SENTRY_DSN`, `SENTRY_ENVIRONMENT=prod`, `SENTRY_TRACES_SAMPLE_RATE=0.2`.
+
+| B4: backend no disponible (uptime /health) | monitor `10437854` + alerta `PENDIENTE` | Prod, 1 min, 3 fallos/1 exito |
+| W5: Disponibilidad (meta >=99.9%) | widget en dashboard `10191181` | agregado manualmente |
