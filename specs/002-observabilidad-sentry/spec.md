@@ -8,6 +8,17 @@
 
 **Input**: User description: "Aplicar observabilidad al backend AeroPass con Sentry, cumpliendo el Principio VI de la constitución ('Observabilidad habilitada, no implementada aquí'): conectar los hooks de tracing (`@traced`) y auditoría (`@audited`) ya expuestos en `observability/hooks.py` a Sentry/OpenTelemetry, sin bloquear la implementación funcional existente. El catálogo específico de métricas de negocio a medir será entregado por el usuario en una iteración posterior."
 
+## Clarifications
+
+### Session 2026-09-23
+
+- Nota del usuario: la inyección de fallos no se trabaja por ahora (diferida también en el spec de la app).
+- Q: ¿Sobre qué pasajeros se calcula la tasa de autoservicio? → A: `VERIFICADO` ÷ (`VERIFICADO` + `REQUIERE_REVISION_MANUAL`) de los pasajeros que llegaron a un estado final en el periodo; los que siguen en `PENDIENTE_VERIFICACION` y los intentos `NO_CONCLUYENTE` no cuentan.
+- Q: ¿Cómo se mide la disponibilidad del backend? → A: Con un endpoint de salud nuevo que verifica la base de datos y Redis, consultado cada minuto por un monitor de Sentry; disponibilidad = chequeos exitosos ÷ chequeos totales dentro del horario operativo.
+- Q: ¿Se aplican a las alertas del backend las mismas reglas que en la app? → A: Sí: las de negocio solo sobre prod, en periodos de 1 hora y con al menos 10 pasajeros en estado final; errores y aperturas de circuit breaker en todos los entornos; disponibilidad tras 3 chequeos fallidos seguidos.
+- Q: ¿Se conectan en una sola traza la app y el backend (tracing distribuido)? → A: Más adelante, cuando los endpoints que usa la app existan en el backend; en este ciclo cada proyecto tiene sus propias trazas.
+- Ajustes por consistencia con decisiones anteriores (sin pregunta nueva): se agrega la Historia 9 (demostración, igual criterio que la app) y la tasa de auto rechazo excluye los intentos `NO_CONCLUYENTE`, igual que el autoservicio.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Captura automática de excepciones no controladas (Priority: P1)
@@ -65,8 +76,9 @@ Como responsable de negocio, quiero medir qué porcentaje de las validaciones se
 
 **Acceptance Scenarios**:
 
-1. **Given** un conjunto de solicitudes de verificación en un periodo, **When** se calcula la tasa de autoservicio, **Then** el resultado es (verificaciones completadas sin intervención ÷ verificaciones totales del periodo) × 100, derivado de los eventos de auditoría ya emitidos por `identity_verification_facade`/`biometric_verification_service`.
-2. **Given** la tasa cae por debajo del umbral de negocio (85%), **When** esto ocurre, **Then** el dato está disponible en la plataforma de observabilidad sin necesidad de una consulta manual a la base de datos.
+1. **Given** los pasajeros que llegaron a un estado final en un periodo, **When** se calcula la tasa de autoservicio, **Then** el resultado es (pasajeros en `VERIFICADO` ÷ pasajeros en `VERIFICADO` + `REQUIERE_REVISION_MANUAL`) × 100, derivado de los eventos de auditoría ya emitidos por `identity_verification_facade`/`biometric_verification_service`.
+2. **Given** un pasajero sigue en `PENDIENTE_VERIFICACION` o su último intento fue `NO_CONCLUYENTE` (proveedor no disponible), **When** se calcula la tasa, **Then** no cuenta ni en el numerador ni en el denominador.
+3. **Given** la tasa cae por debajo del umbral de negocio (85%), **When** esto ocurre, **Then** el dato está disponible en la plataforma de observabilidad sin necesidad de una consulta manual a la base de datos.
 
 ---
 
@@ -80,7 +92,7 @@ Como responsable de negocio y de calidad de verificación, quiero medir qué por
 
 **Acceptance Scenarios**:
 
-1. **Given** un conjunto de intentos de verificación biométrica en el backend, **When** se calcula la métrica, **Then** el resultado es (intentos rechazados automáticamente por regla de negocio ÷ intentos totales) × 100, y se distingue explícitamente de los rechazos causados por un error técnico no controlado (Historia 1).
+1. **Given** un conjunto de intentos de verificación biométrica en el backend, **When** se calcula la métrica, **Then** el resultado es (intentos `FALLIDO` ÷ intentos `EXITOSO` + `FALLIDO`) × 100, separado por motivo (`LIVENESS`, `COMPARACION`), sin contar los `NO_CONCLUYENTE` y distinguido de los errores técnicos no controlados (Historia 1).
 
 ---
 
@@ -94,8 +106,9 @@ Como responsable de operaciones, quiero ver la disponibilidad del servicio en ho
 
 **Acceptance Scenarios**:
 
-1. **Given** el backend operando con normalidad, **When** se consulta la plataforma de observabilidad, **Then** se puede leer la disponibilidad del periodo y la latencia p95/p99 de emisión y consulta de pase.
+1. **Given** el backend operando con normalidad, **When** se consulta la plataforma de observabilidad, **Then** se puede leer la disponibilidad del periodo (a partir del monitor que consulta el endpoint de salud cada minuto) y la latencia p95/p99 de emisión y consulta de pase.
 2. **Given** un proveedor externo (p. ej. biometría) deja de responder y el circuit breaker se abre, **When** esto ocurre, **Then** la tasa de contingencia del periodo aumenta de forma visible y queda asociada a la dependencia específica que falló.
+3. **Given** la base de datos o Redis no responden, **When** el monitor consulta el endpoint de salud, **Then** el chequeo cuenta como fallido y la disponibilidad del periodo baja, aunque no haya tráfico de pasajeros.
 
 ---
 
@@ -110,8 +123,9 @@ Como responsable de operaciones, quiero un panel (dashboard) en el proyecto de S
 **Acceptance Scenarios**:
 
 1. **Given** el proyecto `aeropass-back` en la organización Aeropass, **When** se abre su dashboard, **Then** se pueden leer sin configuración adicional: la tasa de excepciones no controladas, la tasa de autoservicio, la tasa de auto rechazo, la disponibilidad, la latencia p95/p99 de emisión/consulta de pase y la tasa de aperturas de circuit breaker.
-2. **Given** una regla de alerta configurada para uno de los umbrales de negocio (p. ej. disponibilidad <99,9% en la ventana operativa, o tasa de autoservicio <85%), **When** el umbral se cruza, **Then** llega un correo electrónico con la información suficiente para identificar qué métrica y qué componente lo causó, sin exponer datos sensibles del payload que la originó.
-3. **Given** un pico de excepciones no controladas o de aperturas de circuit breaker en un periodo corto, **When** esto ocurre, **Then** una regla de alerta lo notifica por correo antes de que el operador necesite revisar el dashboard proactivamente.
+2. **Given** en prod, en la última hora, al menos 10 pasajeros llegaron a un estado final y la tasa de autoservicio es <85%, **When** se evalúa la regla, **Then** llega un correo que identifica la métrica, sin exponer datos sensibles; con menos de 10 pasajeros, o en un entorno que no es prod, no se envía.
+3. **Given** un pico de excepciones no controladas o de aperturas de circuit breaker en un periodo corto, en cualquier entorno, **When** esto ocurre, **Then** una regla de alerta lo notifica por correo, indicando el entorno, antes de que el operador necesite revisar el dashboard.
+4. **Given** el endpoint de salud falla en 3 chequeos seguidos, **When** se evalúa el monitor, **Then** llega un correo de indisponibilidad; un fallo aislado no lo dispara.
 
 ---
 
@@ -129,12 +143,30 @@ Dos de las métricas de negocio propuestas por el usuario —el tiempo medio de 
 
 ---
 
+### User Story 9 - Demostración en una presentación de 15 minutos (Priority: P1)
+
+Como equipo del proyecto, queremos mostrar en una presentación de 15 minutos las métricas del backend funcionando, sin depender de que los periodos de evaluación (alertas horarias) se cumplan durante la presentación. Sigue el mismo criterio que la Historia 7 del spec de observabilidad de la app.
+
+**Why this priority**: La presentación es la entrega del proyecto; sin datos preparados, las métricas de negocio se verían vacías.
+
+**Independent Test**: Ejecutar el procedimiento de preparación en un entorno que no es prod y, en un ensayo de 15 minutos, confirmar que el dashboard ya tiene cifras y que las alertas inmediatas llegan en vivo.
+
+**Acceptance Scenarios**:
+
+1. **Given** el procedimiento de preparación se ejecutó al menos 1 hora antes en un entorno que no es prod, con pasajeros en `VERIFICADO` y en `REQUIERE_REVISION_MANUAL` e intentos `FALLIDO`, **When** se abre el dashboard, **Then** muestra la tasa de autoservicio, la tasa de auto rechazo, la disponibilidad y la latencia de ese entorno.
+2. **Given** la presentación en curso, **When** se provoca una excepción no controlada, **Then** el evento aparece en Sentry y el correo de alerta llega en menos de 2 minutos.
+3. **Given** la alerta de autoservicio solo evalúa prod, **When** se presenta, **Then** se muestra su configuración con los datos preparados, sin afirmar que disparó en vivo.
+
+---
+
 ### Edge Cases
 
 - ¿Qué pasa si `SENTRY_DSN` no está configurado (desarrollo local o CI)? El sistema debe operar exactamente igual que hoy, sin intentar enviar datos y sin fallar por su ausencia.
 - ¿Qué pasa si la plataforma de observabilidad no está disponible o responde con timeout? El envío de telemetría nunca debe bloquear ni degradar una solicitud de negocio, ni consumir tiempo de ejecución relevante en un entorno serverless con cold starts (Principio I).
 - ¿Qué pasa cuando el circuit breaker de un proveedor externo (Principio V) se abre? Debe quedar registrado como una categoría de evento distinguible de un error de código genérico.
 - ¿Qué pasa si un payload de error contiene por accidente un dato sensible (p. ej. un token en un mensaje de excepción)? Debe existir un mecanismo de saneamiento antes del envío, no depender de la disciplina de cada punto de instrumentación.
+- ¿Qué pasa si un chequeo de salud falla una sola vez por un cold start lento? Cuenta en la disponibilidad del periodo, pero no dispara correo; la alerta exige 3 fallos seguidos.
+- ¿Qué pasa con las pruebas en entornos que no son prod? Sus datos quedan en Sentry separados por entorno, pero no disparan las alertas de negocio.
 - ¿Qué pasa en un cold start (primera invocación del proceso serverless)? La inicialización de la observabilidad no debe repetirse ni fallar en invocaciones "warm" subsecuentes dentro del mismo proceso.
 - ¿Qué pasa si alguien cambia un umbral de alerta directamente en la UI de Sentry sin actualizar este spec? La UI de Sentry es la fuente de verdad operativa de los umbrales configurados; este spec documenta qué debe alertarse y con qué meta de referencia (los KR), no el valor exacto vigente en cada momento.
 
@@ -152,14 +184,19 @@ Dos de las métricas de negocio propuestas por el usuario —el tiempo medio de 
 - **FR-008**: El sistema DEBE registrar la apertura de un circuit breaker (Principio V) como una categoría de evento distinguible de un error de código no controlado.
 - **FR-009**: La inicialización de la observabilidad DEBE ser segura de ejecutar en cada invocación de un proceso serverless (incluyendo cold starts) sin duplicar registros ni fallar en invocaciones repetidas dentro del mismo proceso.
 - **FR-010**: La instrumentación DEBE permitir incorporar métricas de negocio adicionales reutilizando los mismos puntos de extensión (`@traced`/`@audited`), sin requerir un mecanismo distinto ni refactorizar los servicios existentes.
-- **FR-011**: El sistema DEBE calcular y exponer en la plataforma de observabilidad la tasa de autoservicio (KR A1.2): la proporción de verificaciones completadas sin intervención humana sobre el total de verificaciones de un periodo.
-- **FR-012**: El sistema DEBE calcular y exponer la tasa de auto rechazo del backend: la proporción de intentos de verificación biométrica rechazados automáticamente por una regla de negocio (documento inválido, comparación facial insuficiente, liveness fallida) sobre el total de intentos, distinguida de los rechazos por error técnico no controlado (FR-001).
-- **FR-013**: El sistema DEBE exponer la disponibilidad del servicio durante el horario operativo (KR A2.1) y la latencia p95/p99 de emisión y consulta de pase (referencia del KR A2.4 dentro del alcance actual del backend).
+- **FR-011**: El sistema DEBE calcular y exponer en la plataforma de observabilidad la tasa de autoservicio (KR A1.2): pasajeros que llegan a `VERIFICADO` sobre pasajeros que llegan a `VERIFICADO` o `REQUIERE_REVISION_MANUAL` en el periodo. Los pasajeros aún en `PENDIENTE_VERIFICACION` y los intentos `NO_CONCLUYENTE` quedan fuera del cálculo.
+- **FR-012**: El sistema DEBE calcular y exponer la tasa de auto rechazo del backend: intentos de verificación biométrica con resultado `FALLIDO` ÷ intentos `EXITOSO` + `FALLIDO`, separada por motivo (`LIVENESS`, `COMPARACION`). Los intentos `NO_CONCLUYENTE` (proveedor no disponible) no cuentan, igual que en la tasa de autoservicio, y los errores técnicos no controlados (FR-001) se miden aparte.
+- **FR-013**: El sistema DEBE exponer la disponibilidad del servicio durante el horario operativo (KR A2.1) y la latencia p95/p99 de emisión y consulta de pase (referencia del KR A2.4 dentro del alcance actual del backend). La disponibilidad se mide como chequeos exitosos ÷ chequeos totales de un monitor externo de Sentry que consulta cada minuto un endpoint de salud.
+- **FR-013a**: El sistema DEBE ofrecer un endpoint de salud que responda correcto solo si puede alcanzar la base de datos y Redis, sin requerir autenticación y sin revelar en la respuesta detalles internos (versiones, hosts, mensajes de error).
 - **FR-014**: El sistema DEBE exponer la tasa de aperturas de circuit breaker (KR A2.5/Principio V) por dependencia externa, en una ventana de tiempo, distinguiendo qué dependencia falló.
 - **FR-015**: El sistema NO DEBE intentar medir el tiempo de escalamiento a un agente humano ni el costo de contingencia mientras el componente de cola de escalamiento y consola de agente (fuera de alcance, Principio II) no exista; estas métricas quedan documentadas como diferidas (User Story 8) en vez de omitidas.
-- **FR-016**: DEBE existir un dashboard en el proyecto de Sentry `aeropass-back` (organización Aeropass) que muestre, sin configuración adicional por parte de quien lo consulta, las métricas de las Historias 1–6: tasa de excepciones no controladas, tasa de autoservicio, tasa de auto rechazo, disponibilidad, latencia p95/p99 de emisión/consulta de pase, y tasa de aperturas de circuit breaker.
-- **FR-017**: DEBEN existir reglas de alerta por correo electrónico en Sentry para, como mínimo: disponibilidad por debajo de 99,9% en la ventana operativa, tasa de autoservicio por debajo de 85%, y un volumen anómalo de excepciones no controladas o de aperturas de circuit breaker en una ventana corta.
+- **FR-016**: DEBE existir un dashboard en el proyecto de Sentry `aeropass-back` (organización Aeropass) que muestre, separado o filtrable por entorno y sin configuración adicional por parte de quien lo consulta, las métricas de las Historias 1–6: tasa de excepciones no controladas, tasa de autoservicio, tasa de auto rechazo, disponibilidad, latencia p95/p99 de emisión/consulta de pase, y tasa de aperturas de circuit breaker.
+- **FR-017**: DEBEN existir reglas de alerta por correo electrónico en Sentry, con los mismos criterios que la app:
+  - Tasa de autoservicio por debajo de 85%: solo sobre prod, en periodos de 1 hora y solo cuando el periodo tiene al menos 10 pasajeros en estado final.
+  - Pico de excepciones no controladas o de aperturas de circuit breaker en una ventana corta: en todos los entornos, indicando el entorno en el correo.
+  - Disponibilidad: correo tras 3 chequeos de salud fallidos seguidos (unos 3 minutos); un fallo aislado no alerta. El cumplimiento del 99,9% del periodo se muestra en el dashboard.
 - **FR-018**: Las alertas y el dashboard DEBEN configurarse de forma manual en la interfaz de Sentry para este ciclo (no como código versionado en el repositorio); un cambio de umbral se aplica directamente ahí.
+- **FR-019**: DEBE existir un procedimiento documentado para preparar los datos de la demostración en un entorno que no es prod (pasajeros verificados, en revisión manual e intentos fallidos) con al menos 1 hora de anticipación.
 
 ### Key Entities
 
@@ -167,6 +204,7 @@ Dos de las métricas de negocio propuestas por el usuario —el tiempo medio de 
 - **Traza (span)**: la representación de un paso instrumentado del pipeline (o de una llamada externa); incluye nombre del paso, duración y resultado (éxito/fallo/circuito-abierto).
 - **Evento de auditoría**: el registro correlacionable de una operación de negocio auditada (`@audited`); incluye nombre del evento y resultado, sin payload de negocio sensible.
 - **Métrica de negocio/técnica derivada**: un valor agregado (tasa, latencia p95/p99, disponibilidad) calculado a partir de eventos de auditoría y trazas ya existentes, sin persistencia adicional de datos sensibles.
+- **Chequeo de salud**: una consulta periódica (cada minuto) del monitor de Sentry al endpoint de salud; su resultado (éxito/fallo) es la base de la disponibilidad.
 - **Regla de alerta**: un umbral configurado en Sentry sobre una métrica derivada, con un canal de notificación (correo electrónico) y un destinatario.
 
 ## Success Criteria *(mandatory)*
@@ -193,6 +231,12 @@ Dos de las métricas de negocio propuestas por el usuario —el tiempo medio de 
 - El entorno de desarrollo local y CI no requieren una cuenta activa de la plataforma de observabilidad; su ausencia deshabilita el envío sin generar errores.
 - La organización de Sentry ("Aeropass") y el proyecto `aeropass-back` ya existen (creados por el usuario); este spec no cubre su creación, solo lo que debe verse en su dashboard y qué debe alertar.
 - El destinatario exacto del correo de alerta lo define el usuario al crear cada regla en la UI de Sentry; este spec fija qué debe alertarse y con qué umbral de referencia (los KR citados), no la dirección de correo.
+- El KR A1.2 se refiere a validaciones en el punto de control, que no existen en este repo (Principio II); aquí la tasa de autoservicio se mide sobre la verificación biométrica del registro como su mejor aproximación disponible. Cuando exista el endpoint de validación, la misma fórmula se aplica a sus resultados.
+- El tracing distribuido entre app y backend queda diferido hasta que los endpoints que usa la app (consentimiento, emisión de credencial) existan en este backend; hoy la app usa backends falsos para varios de ellos.
+- La inyección de fallos queda diferida por decisión del usuario (2026-09-23), igual que en el spec de la app.
+- La presentación del proyecto dura 15 minutos y usa un entorno que no es prod (Historia 9).
+- El horario operativo del aeropuerto piloto no está definido; mientras no lo esté, la disponibilidad se calcula 24/7, que es la condición más exigente.
+- El endpoint de salud es un punto de extensión de observabilidad (Principio VI) y no una funcionalidad de negocio, por lo que no requiere enmendar el alcance del Principio II.
 - La retención y el plan de la plataforma de observabilidad se rigen por su configuración contratada por separado; está fuera de alcance de este spec.
 - El dashboard y las reglas de alerta se configuran manualmente en la UI de Sentry en este ciclo (decisión explícita del usuario); no se versionan como código (Terraform/API) por ahora, quedando esa opción disponible para un ciclo posterior si la operación lo justifica.
 - Este spec no modifica el comportamiento funcional de ningún endpoint ni servicio existente; únicamente conecta los puntos de extensión de observabilidad ya definidos por el Principio VI.
