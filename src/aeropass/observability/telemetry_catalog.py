@@ -92,6 +92,14 @@ METRIC_RULES: tuple[MetricRule, ...] = (
         frozenset({"estado"}),
         when=lambda data: data.get("outcome") == OUTCOME_OK and data.get("estado") is not None,
     ),
+    # US5 — auto-rejection rate: one per attempt, by result and reason. Unhandled errors never
+    # count here (they are ``outcome=error``, measured apart as error events).
+    MetricRule(
+        "aeropass.verificacion.intento",
+        IDENTITY_VERIFICATION,
+        frozenset({"resultado", "motivo"}),
+        when=lambda data: data.get("outcome") == OUTCOME_OK and data.get("resultado") is not None,
+    ),
 )
 
 

@@ -235,11 +235,11 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Tests (primero)
 
-- [ ] T040 [P] [US5] Agregar a `tests/integration/test_verification_telemetry.py` los casos del Independent Test para `aeropass.verificacion.intento`, incluido que el 429 del proveedor (simulado con un `VisionProviderAdapter` sobre `httpx.MockTransport`) termina en `NO_CONCLUYENTE` y nunca en `FALLIDO` (hipótesis de F18, research §13).
+- [X] T040 [P] [US5] Agregar a `tests/integration/test_verification_telemetry.py` los casos del Independent Test para `aeropass.verificacion.intento`, incluido que el 429 del proveedor (simulado con un `VisionProviderAdapter` sobre `httpx.MockTransport`) termina en `NO_CONCLUYENTE` y nunca en `FALLIDO` (hipótesis de F18, research §13).
 
 ### Implementación
 
-- [ ] T041 [US5] Agregar al catálogo la regla `aeropass.verificacion.intento` (evento `identity.verification` ok, atributos `aeropass.resultado` y `aeropass.motivo`). Hace pasar T040. No debe requerir cambios en `hooks.py` ni en el facade (SC-006).
+- [X] T041 [US5] Agregar al catálogo la regla `aeropass.verificacion.intento` (evento `identity.verification` ok, atributos `aeropass.resultado` y `aeropass.motivo`). Hace pasar T040. No debe requerir cambios en `hooks.py` ni en el facade (SC-006).
 
 **Checkpoint**: auto rechazo separado de los errores técnicos.
 

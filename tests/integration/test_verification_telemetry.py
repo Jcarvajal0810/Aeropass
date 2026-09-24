@@ -61,6 +61,64 @@ async def test_an_inconclusive_attempt_does_not_count(container, sentry_capture)
     assert _final_states(sentry_capture) == []
 
 
+# --- US5: auto-rejection --------------------------------------------------------------------
+INTENTO = "aeropass.verificacion.intento"
+
+
+def _attempts(capture) -> list[tuple[str, str | None]]:
+    return [
+        (m["attributes"]["aeropass.resultado"], m["attributes"].get("aeropass.motivo"))
+        for m in capture.metrics_named(INTENTO)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("marker", "expected"),
+    [
+        ("ok", ("EXITOSO", None)),
+        ("spoof", ("FALLIDO", "LIVENESS")),
+        ("other", ("FALLIDO", "COMPARACION")),
+        ("timeout", ("NO_CONCLUYENTE", None)),
+    ],
+)
+async def test_each_attempt_counts_with_its_result_and_reason(
+    container, sentry_capture, marker, expected
+):
+    async with await _client(container) as client:
+        await _passenger(client, f"attempt-{marker}", marker)
+
+    assert _attempts(sentry_capture) == [expected]
+
+
+async def test_a_provider_quota_error_is_inconclusive_never_a_rejection(container, sentry_capture):
+    """F18 hypothesis (research §13): a 429 must not reject a legitimate passenger."""
+    from aeropass.adapters.biometrics.factory import ResilientBiometricProvider
+    from aeropass.adapters.biometrics.vision_adapter import VisionProviderAdapter
+
+    quota = httpx.MockTransport(lambda request: httpx.Response(429, json={"error": "quota"}))
+    container.biometric_provider = ResilientBiometricProvider(
+        VisionProviderAdapter(
+            httpx.AsyncClient(transport=quota), "https://vision.test/v1/verify", "secret-key"
+        ),
+        container.breaker("biometric"),
+        timeout=1,
+    )
+
+    async with await _client(container) as client:
+        [result] = await _passenger(client, "attempt-quota", "ok")
+
+    assert result["resultado"] == "NO_CONCLUYENTE"
+    assert _attempts(sentry_capture) == [("NO_CONCLUYENTE", None)]
+    http_spans = [
+        s
+        for t in sentry_capture.transactions
+        for s in t.get("spans", [])
+        if s["op"] == "http.client"
+    ]
+    assert [s["data"].get("http.response.status_code") for s in http_spans] == [429]
+    assert "secret-key" not in sentry_capture.dump()
+
+
 async def test_nothing_is_emitted_when_the_commit_fails(container, sentry_capture):
     class FailingCommit(SqlAlchemyUnitOfWork):
         async def commit(self) -> None:
