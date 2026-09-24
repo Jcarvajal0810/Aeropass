@@ -169,7 +169,7 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Tests (primero)
 
-- [ ] T031 [P] [US2] Escribir `tests/integration/test_pipeline_traces.py`:
+- [X] T031 [P] [US2] Escribir `tests/integration/test_pipeline_traces.py`:
   - el flujo completo con los helpers de `tests/integration/helpers.py` produce spans `aeropass.step` para `registration.register`, `facade.verify_and_create_identity`, `verification.record_attempt`, `identity.create_for_success`, `biometrics.mock.evaluate`, `circuit_breaker.biometric` y `passes.issue`;
   - con `MOCK:timeout`, el span `circuit_breaker.biometric` tiene estado `deadline_exceeded`;
   - con el breaker abierto, tiene estado `unavailable`;
@@ -177,7 +177,7 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Implementación
 
-- [ ] T032 [US2] Corregir lo que T031 revele en `src/aeropass/adapters/observability/sentry_sinks.py` o `sentry_privacy.py` (p. ej. que el span del paso quede como hijo de la transacción de la ruta, o que haya datos de span sin filtrar), sin tocar servicios ni adaptadores de negocio.
+- [X] T032 [US2] Corregir lo que T031 revele en `src/aeropass/adapters/observability/sentry_sinks.py` o `sentry_privacy.py` (p. ej. que el span del paso quede como hijo de la transacción de la ruta, o que haya datos de span sin filtrar), sin tocar servicios ni adaptadores de negocio. *Resultado: no hizo falta ningún cambio. Si el sink reporta todo como `internal_error` (prueba de mutación), fallan las pruebas de timeout y de circuito abierto.*
 
 **Checkpoint**: trazas completas del pipeline.
 
