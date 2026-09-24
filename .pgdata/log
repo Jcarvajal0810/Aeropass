@@ -70,3 +70,39 @@
 2026-09-23 15:00:29.180 GMT [33088] ERROR:  transiciones_credencial is append-only (FR-018)
 2026-09-23 15:00:29.180 GMT [33088] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
 2026-09-23 15:00:29.180 GMT [33088] STATEMENT:  delete from transiciones_credencial
+2026-09-23 15:04:37.589 GMT [1920] LOG:  checkpoint starting: time
+2026-09-23 15:04:57.765 GMT [1920] LOG:  checkpoint complete: wrote 182 buffers (1.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=18.281 s, sync=0.951 s, total=20.176 s; sync files=2269, longest=0.004 s, average=0.001 s; distance=2523 kB, estimate=2523 kB; lsn=0/28FBA88, redo lsn=0/28FBA50
+2026-09-23 15:05:09.948 GMT [31436] ERROR:  canceling statement due to user request
+2026-09-23 15:05:09.949 GMT [20208] LOG:  received fast shutdown request
+2026-09-24 14:32:11.825 GMT [6236] LOG:  starting PostgreSQL 16.2 on x86_64-pc-mingw64, compiled by gcc.exe (x86_64-posix-seh-rev2, Built by MinGW-W64 project) 12.2.0, 64-bit
+2026-09-24 14:32:11.825 GMT [6236] LOG:  listening on IPv4 address "127.0.0.1", port 56787
+2026-09-24 14:32:11.944 GMT [30544] LOG:  database system was interrupted; last known up at 2026-09-23 15:04:56 GMT
+2026-09-24 14:32:17.136 GMT [30544] LOG:  could not open file "./log": sharing violation
+2026-09-24 14:32:17.136 GMT [30544] DETAIL:  Continuing to retry for 30 seconds.
+2026-09-24 14:32:17.136 GMT [30544] HINT:  You might have antivirus, backup, or similar software interfering with the database system.
+2026-09-24 14:32:42.351 GMT [30544] LOG:  syncing data directory (fsync), elapsed time: 30.40 s, current path: ./pg_commit_ts
+2026-09-24 14:32:42.380 GMT [30544] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-09-24 14:32:42.395 GMT [30544] LOG:  redo starts at 0/28FBA50
+2026-09-24 14:32:42.395 GMT [30544] LOG:  invalid record length at 0/28FBB38: expected at least 24, got 0
+2026-09-24 14:32:42.395 GMT [30544] LOG:  redo done at 0/28FBB00 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-09-24 14:32:42.415 GMT [12392] LOG:  checkpoint starting: end-of-recovery immediate wait
+2026-09-24 14:32:42.431 GMT [12392] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.006 s, sync=0.002 s, total=0.019 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB; lsn=0/28FBB38, redo lsn=0/28FBB38
+2026-09-24 14:32:42.503 GMT [6236] LOG:  database system is ready to accept connections
+2026-09-24 19:23:29.863 GMT [25968] ERROR:  duplicate key value violates unique constraint "uq_identidades_digitales_una_activa"
+2026-09-24 19:23:29.863 GMT [25968] DETAIL:  Key (pasajero_id)=(01a0d4df-7628-7f10-aded-c76179aef6e1) already exists.
+2026-09-24 19:23:29.863 GMT [25968] STATEMENT:  insert into identidades_digitales (id, pasajero_id, intento_origen_id, estado, created_at) values ($1, $2, $3, 'ACTIVA', now())
+2026-09-24 19:23:46.188 GMT [25968] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-24 19:23:46.188 GMT [25968] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-24 19:23:46.188 GMT [25968] STATEMENT:  update transiciones_credencial set aceptada = not aceptada
+2026-09-24 19:23:46.765 GMT [25968] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-24 19:23:46.765 GMT [25968] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-24 19:23:46.765 GMT [25968] STATEMENT:  delete from transiciones_credencial
+2026-09-24 19:24:58.447 GMT [11348] ERROR:  duplicate key value violates unique constraint "uq_identidades_digitales_una_activa"
+2026-09-24 19:24:58.447 GMT [11348] DETAIL:  Key (pasajero_id)=(01a0d4e0-d02c-7320-b05d-bdd850e0d8ce) already exists.
+2026-09-24 19:24:58.447 GMT [11348] STATEMENT:  insert into identidades_digitales (id, pasajero_id, intento_origen_id, estado, created_at) values ($1, $2, $3, 'ACTIVA', now())
+2026-09-24 19:25:15.916 GMT [11348] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-24 19:25:15.916 GMT [11348] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-24 19:25:15.916 GMT [11348] STATEMENT:  update transiciones_credencial set aceptada = not aceptada
+2026-09-24 19:25:16.547 GMT [11348] ERROR:  transiciones_credencial is append-only (FR-018)
+2026-09-24 19:25:16.547 GMT [11348] CONTEXT:  PL/pgSQL function transiciones_credencial_inmutable() line 3 at RAISE
+2026-09-24 19:25:16.547 GMT [11348] STATEMENT:  delete from transiciones_credencial

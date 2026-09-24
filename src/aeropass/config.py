@@ -44,12 +44,14 @@ class Settings(BaseSettings):
     qr_ttl_seconds: int = 45
 
     # Biometric provider
-    biometric_provider: Literal["mock", "vision"] = "mock"
+    biometric_provider: Literal["mock", "vision", "mxface"] = "mock"
     biometric_liveness_threshold: float = 0.80
     biometric_match_threshold: float = 0.80
     biometric_timeout_seconds: float = Field(default=4.0, gt=0)
     vision_provider_url: str = ""
     vision_provider_api_key: str = ""
+    mxface_subscription_key: str = ""
+    mxface_base_url: str = "https://faceapi.mxface.ai/api/v3"
 
     @field_validator("qr_ttl_seconds")
     @classmethod
