@@ -6,7 +6,7 @@ Cada sección sigue el formato Decisión / Razón / Alternativas. Ninguna secci�
 
 ## §1 SDK e integraciones
 
-- **Decisión**: `sentry-sdk[fastapi]>=2.70,<3` (versión actual 2.70.0), inicializado una sola vez al crear la app. Integraciones: FastAPI/Starlette (errores y una transacción por ruta, nombrada con la plantilla, p. ej. `GET /v1/passes/{credencial_id}`), SQLAlchemy y httpx (spans de base de datos y llamadas externas), Logging (logs de nivel `WARNING` o más de los loggers `aeropass.*`). Logs y métricas activados (`enable_logs=True`; métricas activas por defecto).
+- **Decisión**: `sentry-sdk[fastapi]>=2.70,<3` (versión actual 2.70.0), inicializado una sola vez al crear la app. Integraciones: FastAPI/Starlette (errores y una transacción por ruta, nombrada con la plantilla **sin el método**, p. ej. `/v1/passes/{credencial_id}`; el método va en `http.method`), SQLAlchemy y httpx (spans de base de datos y llamadas externas), Logging (logs de nivel `WARNING` o más de los loggers `aeropass.*`). Logs y métricas activados (`enable_logs=True`; métricas activas por defecto).
 - **Razón**: 2.70 ya trae `sentry_sdk.logger` y `sentry_sdk.metrics.count/distribution/gauge` con los hooks `before_send_log` y `before_send_metric`, las mismas señales que usó la app (spec 015). Así ambos proyectos se consultan igual en Sentry.
 - **Alternativas**: OpenTelemetry como instrumentación con Sentry como backend. Es lo que piden el Principio I ("OpenTelemetry + Sentry") y el anexo B del documento final ("OpenTelemetry desde las funciones hacia un backend externo", paso 10 del recorrido del equipo). **Descartado en este ciclo por decisión del usuario (2026-09-24)**:
   - agrega configuración y un segundo modelo de spans;
@@ -23,7 +23,7 @@ Cada sección sigue el formato Decisión / Razón / Alternativas. Ninguna secci�
 
 ## §3 Envío en Vercel sin perder telemetría ni bloquear (FR-007)
 
-- **Decisión**: un middleware ASGI, al terminar cada respuesta, llama a `vercel.functions.wait_until(asyncio.to_thread(sentry_sdk.flush, 2.0))`. El paquete `vercel` (0.11.3) ya es dependencia del proyecto. Fuera de Vercel, `wait_until` no hace nada y el hilo de fondo del SDK envía de forma normal.
+- **Decisión**: `FlushTelemetryMiddleware`, un envoltorio ASGI aplicado en `api/index.py` (el punto de entrada de Vercel), al terminar cada request HTTP llama a `vercel.functions.wait_until(asyncio.to_thread(sentry_sdk.flush, 2.0))`. `flush` también vacía los lotes de logs y métricas. **Va afuera de la app y no como middleware de FastAPI**, por un hallazgo de implementación: Sentry captura las excepciones no controladas en su propio envoltorio ASGI, que queda afuera de todo middleware de la app. Un middleware interno lanzaría el flush antes de que exista el evento de error. El paquete `vercel` (0.11.3) ya es dependencia del proyecto. Fuera de Vercel, `wait_until` no hace nada y el hilo de fondo del SDK envía de forma normal.
 - **Razón**: el SDK envía en un hilo de fondo; en serverless, el proceso puede congelarse justo después de responder y perder lo que quedó en cola. `wait_until` mantiene viva la invocación **después** de enviar la respuesta, así que el pasajero no espera. El tiempo extra queda acotado por `maxDuration` (30 s).
 - **Alternativas**: `sentry_sdk.flush()` síncrono al final de cada request. Descartado: suma hasta 2 s a la respuesta. Confiar solo en el hilo de fondo: se perderían eventos en instancias que se congelan (SC-001 exige verlos en menos de 1 minuto). **Verificación obligatoria**: quickstart §3 confirma en un deploy real que un error aparece en Sentry.
 
@@ -49,7 +49,7 @@ Cada sección sigue el formato Decisión / Razón / Alternativas. Ninguna secci�
 | Autoservicio (KR A1.2) | Métrica `aeropass.pasajero.estado_final` (count, atributo `aeropass.estado`) | Cada pasajero llega a un estado final **una sola vez** (la transición exige `PENDIENTE_VERIFICACION`), así que contar eventos = contar pasajeros, sin `count_unique`. Las métricas no se muestrean. |
 | Auto rechazo | Métrica `aeropass.verificacion.intento` (count, atributos `aeropass.resultado`, `aeropass.motivo`) | Un evento por intento; `NO_CONCLUYENTE` queda como valor propio para excluirlo. |
 | Disponibilidad (KR A2.1) | Monitor de Uptime de Sentry sobre `GET /health`, cada 1 minuto | Clarificación del spec. Es externo: detecta caídas aunque no haya tráfico ni pueda correr el código. |
-| Latencia de pase | Transacciones `POST /v1/passes` y `GET /v1/passes/{credencial_id}`, `p95`/`p99(span.duration)` | Nativo de la integración; con muestreo (§8). |
+| Latencia de pase | Transacciones `/v1/passes` (emisión, POST) y `/v1/passes/{credencial_id}` (consulta, GET), `p95`/`p99(span.duration)` | Nativo de la integración; con muestreo (§8). |
 | Contingencia (KR A2.5) | Métrica `aeropass.circuit_breaker.apertura` (count, atributo `aeropass.dependencia`) + log | Una apertura ya es un pico (5 fallos en 60 s); el atributo identifica la dependencia (FR-014). |
 
 Además, cada evento de auditoría se envía como **log** de Sentry (`aeropass.event`, resultado y atributos de la lista blanca) para correlación y diagnóstico (FR-003). Las métricas alimentan dashboard y alertas.

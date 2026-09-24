@@ -98,7 +98,8 @@ specs/002-observabilidad-sentry/
 
 ```text
 src/aeropass/
-├── main.py                                   # MODIFICA: configure_observability() antes de FastAPI(); middleware de flush; router health
+├── main.py                                   # MODIFICA: configure_observability() antes de FastAPI(); router health
+│   (api/index.py, fuera de src/)             # MODIFICA: envuelve la app en FlushTelemetryMiddleware (research §3)
 ├── config.py                                 # MODIFICA: sentry_dsn, sentry_environment, sentry_traces_sample_rate, release
 ├── observability/
 │   ├── hooks.py                              # MODIFICA: span() público; audited(describe=...)
@@ -153,4 +154,4 @@ README.md                                     # MODIFICA: sección de observabil
 | **Enmienda de los Principios II y VI** (observabilidad pasa a estar en el alcance de este repo), **con aclaración del I** (SDK de Sentry detrás de los hooks) | La feature implementa en este repo lo que la constitución asigna a "otro equipo". La Gobernanza exige enmienda para cambios de alcance. | Implementarla en otro repo: los sinks deben registrarse dentro del proceso del backend y `/health` debe ser una ruta de esta app. **Aprobada por el usuario (2026-09-24): constitución 1.1.0.** |
 | Extender `observability/hooks.py` (`span()` público, `describe` en `@audited`) | El breaker necesita un span con nombre dinámico, y el facade tiene que declarar el resultado después del `commit` | Emitir desde dentro de los servicios: se emitiría antes del `commit` o mezclaría telemetría con lógica (research §6–§7). |
 | **D1 — Alerta de autoservicio sin el mínimo de 10 pasajeros** | Sentry no permite condicionar un monitor al volumen | Un evaluador programado contra la API de Sentry es código nuevo y contradice FR-018. **Aceptada por el usuario (2026-09-24), igual que en la app; FR-017 ajustado.** |
-| Middleware de flush con `wait_until` | En serverless, la cola del SDK puede perderse al congelarse el proceso | Flush síncrono: suma hasta 2 s por respuesta (research §3). |
+| Envoltorio ASGI de flush con `wait_until` (en `api/index.py`) | En serverless, la cola del SDK puede perderse al congelarse el proceso | Flush síncrono: suma hasta 2 s por respuesta (research §3). |

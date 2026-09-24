@@ -7,6 +7,7 @@ from starlette.requests import Request
 
 from aeropass.domain.errors import NoAutenticado
 from aeropass.observability.hooks import audited
+from aeropass.observability.telemetry_catalog import AUTH_AUTHENTICATE
 from aeropass.ports.auth import AuthenticatedUser
 
 
@@ -17,7 +18,7 @@ class ClerkAuthenticator:
             authorized_parties=authorized_parties or None,
         )
 
-    @audited("auth.authenticate")
+    @audited(AUTH_AUTHENTICATE)
     async def authenticate(self, request: Request) -> AuthenticatedUser:
         if not request.headers.get("authorization"):
             raise NoAutenticado()

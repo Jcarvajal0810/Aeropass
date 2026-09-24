@@ -16,6 +16,7 @@ from aeropass.domain.errors import (
     LimiteEmisionExcedido,
 )
 from aeropass.observability.hooks import audited, traced
+from aeropass.observability.telemetry_catalog import CREDENTIAL_ISSUE
 from aeropass.ports.auth import AuthenticatedUser
 from aeropass.ports.clock import Clock
 from aeropass.ports.flight_catalog import FlightCatalog
@@ -58,7 +59,7 @@ class PassIssuanceService:
         self._ttl = ttl_seconds
 
     @traced("passes.issue")
-    @audited("credential.issue")
+    @audited(CREDENTIAL_ISSUE)
     async def issue(self, user: AuthenticatedUser, codigo_vuelo: str) -> IssuedPass:
         codigo = await self._flights.validate(codigo_vuelo)
 

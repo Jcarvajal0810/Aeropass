@@ -31,7 +31,7 @@ Filtro global: **Environment** (`prod`, `demo`, `dev`, `simulated`); por defecto
 | W3 | Autoservicio (KR A1.2, meta 85% o más) | Application Metrics | `sum(aeropass.pasajero.estado_final)` agrupado por `aeropass.estado`; si el widget admite ecuaciones, `VERIFICADO / total` | Número grande + tabla |
 | W4 | Auto rechazo | Application Metrics | `sum(aeropass.verificacion.intento)` agrupado por `aeropass.resultado` y `aeropass.motivo` | Tabla + barras apiladas |
 | W5 | Disponibilidad (KR A2.1, meta 99,9% o más) | Uptime | porcentaje del monitor de Uptime. Si el dashboard no tiene dataset de Uptime, un widget de texto con el enlace al monitor | Número grande |
-| W6 | Latencia de pase | Spans | `p95(span.duration)` y `p99(span.duration)` con `is_transaction:true transaction:["POST /v1/passes","GET /v1/passes/{credencial_id}"]`, agrupado por `transaction` | Tabla + línea |
+| W6 | Latencia de pase | Spans | `p95(span.duration)` y `p99(span.duration)` con `is_transaction:true transaction:["/v1/passes","/v1/passes/{credencial_id}"]` (la integración nombra la transacción con la plantilla de la ruta, sin el método), agrupado por `transaction` | Tabla + línea |
 | W7 | Aperturas de circuit breaker (KR A2.5) | Application Metrics | `sum(aeropass.circuit_breaker.apertura)` agrupado por `aeropass.dependencia` | Barras en el tiempo |
 | W8 | Verificaciones no concluyentes | Application Metrics | `sum(aeropass.verificacion.intento)` con `aeropass.resultado:NO_CONCLUYENTE` | Línea |
 | W9 | Latencia de pasos del pipeline | Spans | `p95(span.duration)` con `span.op:aeropass.step`, agrupado por `span.description` | Tabla |

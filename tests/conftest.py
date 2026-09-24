@@ -26,6 +26,7 @@ from aeropass.adapters.fakes.images import make_image
 from aeropass.api.deps import Container
 from aeropass.config import Settings
 from aeropass.main import create_app
+from tests.support.sentry_capture import sentry_capture  # noqa: F401 - shared fixture (spec 002)
 
 ROOT = Path(__file__).resolve().parent.parent
 TEST_DB = "aeropass_test"

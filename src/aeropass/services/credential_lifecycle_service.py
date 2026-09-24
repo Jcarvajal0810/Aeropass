@@ -16,6 +16,7 @@ from aeropass.domain.credential.credential import CredencialAcceso, Transicion, 
 from aeropass.domain.enums import EstadoCredencial
 from aeropass.domain.errors import CredencialNoEncontrada
 from aeropass.observability.hooks import audited, traced
+from aeropass.observability.telemetry_catalog import CREDENTIAL_CONSUME
 from aeropass.ports.clock import Clock
 from aeropass.ports.repositories import UnitOfWork
 from aeropass.ports.token_store import TokenStore, TokenStoreUnavailable
@@ -52,7 +53,7 @@ class CredentialLifecycleService:
         self._clock = clock
 
     @traced("credential.consume")
-    @audited("credential.consume")
+    @audited(CREDENTIAL_CONSUME)
     async def consume(self, jti: uuid.UUID, *, actor: str) -> ConsumeResult:
         now = self._clock.now()
         async with self._uow() as uow:

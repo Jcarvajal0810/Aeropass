@@ -15,11 +15,13 @@ Módulo: `src/aeropass/adapters/observability/sentry_privacy.py`. Sus pruebas (`
 
 ## `before_send(event, hint)` — errores
 
-1. Borra `user`, `request.cookies`, `request.data` y `request.query_string`; a `request.url` le quita la query.
+1. Borra `user`, `request.cookies`, `request.data`, `request.query_string` y `request.env`; a `request.url` le quita la query.
 2. `request.headers`: conserva solo `content-type` y `user-agent`.
-3. En cada `exception.values[]`, si el `module` del tipo **no** empieza con `aeropass.`, reemplaza `value` por `[redactado]`. Conserva `type` y `stacktrace` (con variables locales ya desactivadas en el SDK). Las excepciones `aeropass.*` conservan su mensaje, que son textos fijos.
-4. `logentry`/`message` de eventos que vienen de `logging`: se conservan (cubiertos por `test_no_pii_in_logs.py`).
+3. En cada `exception.values[]`, si el `module` del tipo **no** empieza con `aeropass.`, reemplaza `value` por `[redactado]`. Esto incluye las excepciones de Python, cuyo `module` es nulo. Conserva `type` y `stacktrace` (con variables locales ya desactivadas en el SDK). Las excepciones `aeropass.*` conservan su mensaje, que son textos fijos.
+4. `logentry` de eventos que vienen de `logging`: se conserva si el logger es `aeropass.*` (cubierto por `test_no_pii_in_logs.py`); con cualquier otro logger se reemplaza por `{"message": "[redactado]"}`.
 5. Nunca retorna `None` para un error: el filtro limpia, no descarta.
+
+**Contexto de código fuente**: el SDK adjunta a cada frame las líneas de código que lo rodean. Son código de la app, no datos de un request, y se conservan porque son clave para diagnosticar. Por eso el código no debe tener secretos escritos a mano, regla que ya vale sin Sentry.
 
 ## `before_send_transaction(event, hint)` — trazas
 
@@ -37,12 +39,12 @@ Aplica los pasos 1–2 al `request` de la transacción. En cada span, borra `dat
 ## `before_send_log(log, hint)`
 
 - Pasa si el log viene del `SentryAuditSink` (`aeropass.event` presente) **o** de un logger `aeropass.*`.
-- Se quedan los atributos de la lista blanca ([telemetry-events.md](telemetry-events.md)) y los del SDK con prefijo `sentry.`, `server.` y `code.`; el resto se borra.
+- Se quedan los atributos de la lista blanca ([telemetry-events.md](telemetry-events.md)) y los del SDK con prefijo `sentry.`, `server.`, `code.` y `logger.`. El resto se borra, incluidos `user.*`, `thread.*` y `process.*`.
 - Cualquier otro log se descarta.
 
 ## `before_send_metric(metric, hint)`
 
-Pasa solo si el nombre está en el catálogo de métricas; conserva solo sus atributos permitidos y los del SDK (`sentry.*`). El resto se descarta.
+Pasa solo si el nombre está en el catálogo de métricas; conserva solo sus atributos permitidos y los del SDK (`sentry.*`, `server.*`). El resto se descarta.
 
 ## Casos obligatorios de prueba
 

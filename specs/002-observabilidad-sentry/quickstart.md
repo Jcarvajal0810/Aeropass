@@ -36,7 +36,7 @@ uv run --python 3.11 python -m aeropass.tools.e2e_flow --base-url https://<deplo
 ```
 
 3. Esperado en Sentry, en menos de 1 minuto:
-   - transacciones `POST /v1/identity`, `POST /v1/biometrics/verifications`, `POST /v1/passes` y `GET /v1/passes/{credencial_id}`, con spans `aeropass.step` (p. ej. `facade.verify_and_create_identity`, `passes.issue`);
+   - transacciones `/v1/identity`, `/v1/biometrics/verifications`, `/v1/passes` y `/v1/passes/{credencial_id}` (plantilla de la ruta, sin método), con spans `aeropass.step` (p. ej. `facade.verify_and_create_identity`, `passes.issue`);
    - log `aeropass.audit` con `aeropass.event=identity.verification` y `aeropass.resultado=EXITOSO`;
    - métricas `aeropass.verificacion.intento` y `aeropass.pasajero.estado_final`.
    Si algo llega solo cuando hay un segundo request, el flush con `wait_until` no está funcionando.

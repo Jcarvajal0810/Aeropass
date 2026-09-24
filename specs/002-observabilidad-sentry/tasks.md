@@ -45,21 +45,21 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Catálogo y apoyo de pruebas
 
-- [ ] T004 Crear `src/aeropass/observability/telemetry_catalog.py` como fuente única (Principio IV), sin importar `sentry_sdk`:
+- [X] T004 Crear `src/aeropass/observability/telemetry_catalog.py` como fuente única (Principio IV), sin importar `sentry_sdk`:
   - nombres de eventos de auditoría: `identity.verification`, `credential.issue`, `credential.consume`, `auth.authenticate`, `resilience.circuit_opened`;
   - política de log por evento (`auth.authenticate`: solo `error`; `resilience.circuit_opened`: nivel `warning`);
   - atributos de log permitidos (`aeropass.event`, `aeropass.outcome`, `aeropass.error_type`, `aeropass.resultado`, `aeropass.motivo`, `aeropass.estado`, `aeropass.dependencia`);
   - un registro vacío de reglas de métrica (nombre, evento de origen, atributos permitidos y función que decide si se emite), para que cada historia agregue la suya.
   Ver contracts/telemetry-events.md.
-- [ ] T005 Reemplazar los nombres de evento escritos como texto en los `@audited` existentes por las constantes del catálogo (T004), para que cada nombre exista en un solo lugar (Principio IV). Archivos: `src/aeropass/adapters/auth/clerk.py`, `src/aeropass/adapters/fakes/auth.py`, `src/aeropass/services/credential_lifecycle_service.py`, `src/aeropass/services/pass_issuance_service.py` y `src/aeropass/services/identity_verification_facade.py`. Criterio: `grep -rn '@audited("' src/` no devuelve resultados.
-- [ ] T006 [P] Crear `tests/support/sentry_capture.py` (y `tests/support/__init__.py`) con un fixture `sentry_capture`:
+- [X] T005 Reemplazar los nombres de evento escritos como texto en los `@audited` existentes por las constantes del catálogo (T004), para que cada nombre exista en un solo lugar (Principio IV). Archivos: `src/aeropass/adapters/auth/clerk.py`, `src/aeropass/adapters/fakes/auth.py`, `src/aeropass/services/credential_lifecycle_service.py`, `src/aeropass/services/pass_issuance_service.py` y `src/aeropass/services/identity_verification_facade.py`. Criterio: `grep -rn '@audited("' src/` no devuelve resultados.
+- [X] T006 [P] Crear `tests/support/sentry_capture.py` (y `tests/support/__init__.py`) con un fixture `sentry_capture`:
   - inicializa `sentry_sdk` con un transporte en memoria que guarda los envelopes (errores, transacciones, logs, métricas) y las opciones reales de `configure_observability`;
   - al terminar, cierra el cliente y limpia los hooks registrados (`hooks.clear_hooks()`).
   Registrarlo en `tests/conftest.py`.
 
 ### Pruebas primero (deben fallar)
 
-- [ ] T007 [P] Escribir `tests/unit/test_sentry_privacy.py` con **todos** los casos obligatorios de contracts/privacy-filter.md:
+- [X] T007 [P] Escribir `tests/unit/test_sentry_privacy.py` con **todos** los casos obligatorios de contracts/privacy-filter.md:
   - `request.data` con `numero_documento` → sale sin `data`;
   - `UniqueViolationError` de asyncpg → `value = "[redactado]"` y conserva el tipo;
   - una `DomainError` conserva su mensaje;
@@ -68,36 +68,36 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
   - una métrica fuera del catálogo se descarta;
   - la cabecera `authorization` nunca sale;
   - `before_send` nunca devuelve `None` para un error.
-- [ ] T008 [P] Escribir `tests/contract/test_telemetry_allowlist.py`. Para cada evento del catálogo, emitir con `emit_audit` todas las combinaciones de atributos que produce su `describe` y comprobar dos cosas: cada atributo de log y de métrica capturado está en la lista blanca de contracts/telemetry-events.md, y ninguna métrica fuera del catálogo llega al transporte.
-- [ ] T009 [P] Escribir `tests/unit/test_observability_setup.py`:
+- [X] T008 [P] Escribir `tests/contract/test_telemetry_allowlist.py`. Para cada evento del catálogo, emitir con `emit_audit` todas las combinaciones de atributos que produce su `describe` y comprobar dos cosas: cada atributo de log y de métrica capturado está en la lista blanca de contracts/telemetry-events.md, y ninguna métrica fuera del catálogo llega al transporte.
+- [X] T009 [P] Escribir `tests/unit/test_observability_setup.py`:
   - sin `SENTRY_DSN`, `configure_observability` no inicializa el cliente ni registra hooks, y `create_app()` responde igual;
   - con DSN, las opciones son `send_default_pii=False`, `include_local_variables=False`, `max_request_body_size="never"`, `enable_logs=True`, los cinco hooks del filtro, el `environment` y el `release`;
   - llamar dos veces a `create_app` registra los hooks una sola vez (FR-009);
   - `traces_sampler` devuelve 0 para `/health` y la tasa configurada para el resto.
-- [ ] T010 [P] Escribir `tests/unit/test_hooks.py`:
+- [X] T010 [P] Escribir `tests/unit/test_hooks.py`:
   - `span(name)` abre y cierra los span hooks registrados, y relanza la excepción sin cambiarla;
   - `@audited(event, describe=fn)` agrega los atributos de `fn(resultado)` solo en éxito, omite los valores `None`, y en error emite `outcome=error` con `error=<tipo>` sin llamar a `describe`;
   - sin `describe`, el comportamiento actual no cambia (sync y async).
-- [ ] T011 [P] Escribir `tests/unit/test_sentry_sinks.py`:
+- [X] T011 [P] Escribir `tests/unit/test_sentry_sinks.py`:
   - `SentrySpanHook` crea un span `op="aeropass.step"` con el nombre recibido y mapea `TimeoutError`→`deadline_exceeded`, `CircuitOpenError`→`unavailable`, `CancelledError`→`cancelled` y otra excepción→`internal_error`;
   - `SentryAuditSink` produce un log `aeropass.audit` por evento con los atributos del catálogo, aplica la política por evento (no hay log de `auth.authenticate` ok) y emite las métricas que definan las reglas del catálogo.
 
 ### Implementación
 
-- [ ] T012 Implementar `src/aeropass/adapters/observability/sentry_privacy.py` (`SentryPrivacyFilter` con `before_send`, `before_send_transaction`, `before_breadcrumb`, `before_send_log` y `before_send_metric`, más `adapters/observability/__init__.py`) según contracts/privacy-filter.md. Las listas blancas se leen del catálogo (T004). Hace pasar T007.
-- [ ] T013 Extender `src/aeropass/observability/hooks.py`:
+- [X] T012 Implementar `src/aeropass/adapters/observability/sentry_privacy.py` (`SentryPrivacyFilter` con `before_send`, `before_send_transaction`, `before_breadcrumb`, `before_send_log` y `before_send_metric`, más `adapters/observability/__init__.py`) según contracts/privacy-filter.md. Las listas blancas se leen del catálogo (T004). Hace pasar T007.
+- [X] T013 Extender `src/aeropass/observability/hooks.py`:
   - convertir `_spans` en `span(name)` público y mantener el alias interno;
   - agregar el parámetro opcional `describe: Callable[[R], Mapping[str, str | None]] | None = None` a `audited`, que agrega atributos solo en éxito (research §6).
   Hace pasar T010.
-- [ ] T014 Implementar `src/aeropass/adapters/observability/sentry_sinks.py`: `SentrySpanHook` (context manager con `sentry_sdk.start_span`, estado según la excepción) y `SentryAuditSink` (log vía `sentry_sdk.logger`, métricas vía `sentry_sdk.metrics.count` según las reglas del catálogo). Hace pasar T011 y T008.
-- [ ] T015 Implementar `src/aeropass/adapters/observability/sentry_setup.py`:
+- [X] T014 Implementar `src/aeropass/adapters/observability/sentry_sinks.py`: `SentrySpanHook` (context manager con `sentry_sdk.start_span`, estado según la excepción) y `SentryAuditSink` (log vía `sentry_sdk.logger`, métricas vía `sentry_sdk.metrics.count` según las reglas del catálogo). Hace pasar T011 y T008.
+- [X] T015 Implementar `src/aeropass/adapters/observability/sentry_setup.py`:
   - `configure_observability(settings)`: idempotente con una bandera de módulo; no hace nada sin DSN;
   - integraciones: FastAPI/Starlette con `transaction_style="url"`, SQLAlchemy, httpx y `LoggingIntegration` (logs de Sentry a partir de `WARNING` y solo para loggers `aeropass.*`, filtrados por el hook `before_send_log`);
   - `traces_sampler`: 0 para `/health`;
   - registra una sola vez `SentrySpanHook` y `SentryAuditSink` con `hooks.register_*`;
-  - `FlushTelemetryMiddleware` (ASGI) que, tras el último `http.response.body`, llama a `vercel.functions.wait_until(asyncio.to_thread(sentry_sdk.flush, 2.0))` solo si el cliente está activo (research §3).
+  - `FlushTelemetryMiddleware`: envoltorio ASGI que, al terminar cada request HTTP, llama a `vercel.functions.wait_until(asyncio.to_thread(sentry_sdk.flush, 2.0))` solo si el cliente está activo (research §3).
   Hace pasar T009.
-- [ ] T016 Conectar en `src/aeropass/main.py`: resolver el `container`, llamar a `configure_observability(container.settings)` **antes** de `FastAPI(...)` y agregar `FlushTelemetryMiddleware` con `app.add_middleware`. Correr la suite completa sin DSN: sin regresiones (quickstart §1).
+- [X] T016 Conectar en `src/aeropass/main.py`: resolver el `container` y llamar a `configure_observability(container.settings)` **antes** de `FastAPI(...)`. En `api/index.py`, envolver la app en `FlushTelemetryMiddleware`. **No** usar `app.add_middleware`: Sentry captura los errores en su envoltorio ASGI, que queda afuera de todo middleware de la app (research §3). Correr la suite completa sin DSN: sin regresiones (quickstart §1).
 
 **Checkpoint**: filtro, hooks, sinks e inicialización en verde; sin DSN el backend se comporta igual que antes.
 
@@ -145,7 +145,7 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
   - al fallar la prueba en `HALF_OPEN` se emite otra vez;
   - un fallo que no abre el circuito no emite nada;
   - cada `call` corre dentro de `span("circuit_breaker.<nombre>")`, también cuando se rechaza con `CircuitOpenError`.
-- [ ] T023 [P] [US6] Escribir `tests/integration/test_pass_latency_telemetry.py`: con el transporte en memoria, `POST /v1/passes` y `GET /v1/passes/{id}` producen transacciones con los nombres `POST /v1/passes` y `GET /v1/passes/{credencial_id}` (plantilla, sin el UUID), y `GET /health` no produce transacción.
+- [ ] T023 [P] [US6] Escribir `tests/integration/test_pass_latency_telemetry.py`: con el transporte en memoria, `POST /v1/passes` y `GET /v1/passes/{id}` producen transacciones con los nombres `/v1/passes` y `/v1/passes/{credencial_id}` (plantilla de la ruta, sin el método ni el UUID), y `GET /health` no produce transacción.
 
 ### Implementación
 

@@ -8,6 +8,10 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from aeropass.main import app  # noqa: E402
+from aeropass.adapters.observability.sentry_setup import FlushTelemetryMiddleware  # noqa: E402
+from aeropass.main import app as _app  # noqa: E402
+
+# Outermost wrapper: sends queued telemetry after each response (spec 002, research §3).
+app = FlushTelemetryMiddleware(_app)
 
 __all__ = ["app"]

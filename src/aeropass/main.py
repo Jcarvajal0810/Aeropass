@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from aeropass.adapters.observability.sentry_setup import configure_observability
 from aeropass.api.deps import Container
 from aeropass.api.schemas import ErrorResponse
 from aeropass.domain.errors import DatosInvalidos, DomainError
@@ -23,12 +24,15 @@ def _error_response(exc: DomainError) -> JSONResponse:
 
 
 def create_app(container: Container | None = None) -> FastAPI:
+    container = container or Container.from_env()
+    # Before FastAPI(): the Sentry integration must be active when the app is built (spec 002).
+    configure_observability(container.settings)
     app = FastAPI(
         title="AeroPass Backend",
         version="1.0.0",
         description="Registration, biometric verification, digital identity and dynamic QR",
     )
-    app.state.container = container or Container.from_env()
+    app.state.container = container
 
     # Open to any origin until the frontend has a fixed domain. Auth travels in the
     # Authorization header (not cookies), so credentials stay disabled.

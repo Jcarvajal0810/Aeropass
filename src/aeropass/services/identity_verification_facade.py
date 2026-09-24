@@ -18,6 +18,7 @@ from aeropass.domain.images import ImageInput, validate_image
 from aeropass.domain.passenger import DocumentoRegistrado, Pasajero
 from aeropass.domain.verification import IntentoVerificacion
 from aeropass.observability.hooks import audited, traced
+from aeropass.observability.telemetry_catalog import IDENTITY_VERIFICATION
 from aeropass.ports.biometric_provider import SafeBiometricProvider
 from aeropass.ports.media_storage import MediaStorage, MediaUnavailable
 from aeropass.ports.repositories import UnitOfWork
@@ -53,7 +54,7 @@ class IdentityVerificationFacade:
         self._dispatcher = dispatcher
 
     @traced("facade.verify_and_create_identity")
-    @audited("identity.verification")
+    @audited(IDENTITY_VERIFICATION)
     async def verify_and_create_identity(
         self, pasajero: Pasajero, doc: DocumentoRegistrado, selfie: ImageInput
     ) -> VerificationOutcome:
