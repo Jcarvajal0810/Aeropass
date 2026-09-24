@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Vercel Blob
     blob_read_write_token: str = ""
-    blob_timeout_seconds: float = Field(default=3.0, gt=0)
+    blob_timeout_seconds: float = Field(default=10.0, gt=0)
 
     # Upstash Redis
     upstash_redis_rest_url: str = ""
