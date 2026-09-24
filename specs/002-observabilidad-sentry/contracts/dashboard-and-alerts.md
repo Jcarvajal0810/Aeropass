@@ -64,7 +64,7 @@ Todos los correos indican entorno y métrica, sin datos sensibles.
 
 ## Desviaciones conocidas
 
-- **D1 (FR-017)**: B2 no puede exigir al menos 10 pasajeros en estado final en la hora. Evalúa la ventana tal cual; con poco volumen, revisar W3 antes de actuar. Igual que en la app. **Pendiente de confirmación del usuario.**
+- **D1 (FR-017)**: B2 no puede exigir al menos 10 pasajeros en estado final en la hora. Evalúa la ventana tal cual; con poco volumen, revisar W3 antes de actuar. Igual que en la app. **Aceptada por el usuario (2026-09-24); FR-017 ajustado.**
 - Si los monitores de Application Metrics no admiten la ecuación A/B en B2, la alternativa es alertar sobre `REQUIERE_REVISION_MANUAL` como conteo absoluto (se decide al configurarlo, como A3 en la app).
 
 ## Configuración del proyecto (una sola vez)

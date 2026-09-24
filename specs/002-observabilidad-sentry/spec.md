@@ -17,6 +17,7 @@
 - Q: ¿Cómo se mide la disponibilidad del backend? → A: Con un endpoint de salud nuevo que verifica la base de datos y Redis, consultado cada minuto por un monitor de Sentry; disponibilidad = chequeos exitosos ÷ chequeos totales dentro del horario operativo.
 - Q: ¿Se aplican a las alertas del backend las mismas reglas que en la app? → A: Sí: las de negocio solo sobre prod, en periodos de 1 hora y con al menos 10 pasajeros en estado final; errores y aperturas de circuit breaker en todos los entornos; disponibilidad tras 3 chequeos fallidos seguidos.
 - Q: ¿Se conectan en una sola traza la app y el backend (tracing distribuido)? → A: Más adelante, cuando los endpoints que usa la app existan en el backend; en este ciclo cada proyecto tiene sus propias trazas.
+- Decisión del usuario tras el plan (2026-09-24): se acepta la desviación D1. La alerta de autoservicio no exige un mínimo de 10 pasajeros porque Sentry no lo permite, igual que en la app. FR-017 e Historia 7 ajustados.
 - Ajustes por consistencia con decisiones anteriores (sin pregunta nueva): se agrega la Historia 9 (demostración, igual criterio que la app) y la tasa de auto rechazo excluye los intentos `NO_CONCLUYENTE`, igual que el autoservicio.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -123,7 +124,7 @@ Como responsable de operaciones, quiero un panel (dashboard) en el proyecto de S
 **Acceptance Scenarios**:
 
 1. **Given** el proyecto `aeropass-back` en la organización Aeropass, **When** se abre su dashboard, **Then** se pueden leer sin configuración adicional: la tasa de excepciones no controladas, la tasa de autoservicio, la tasa de auto rechazo, la disponibilidad, la latencia p95/p99 de emisión/consulta de pase y la tasa de aperturas de circuit breaker.
-2. **Given** en prod, en la última hora, al menos 10 pasajeros llegaron a un estado final y la tasa de autoservicio es <85%, **When** se evalúa la regla, **Then** llega un correo que identifica la métrica, sin exponer datos sensibles; con menos de 10 pasajeros, o en un entorno que no es prod, no se envía.
+2. **Given** en prod, en la última hora, la tasa de autoservicio es <85%, **When** se evalúa la regla, **Then** llega un correo que identifica la métrica, sin exponer datos sensibles; en un entorno que no es prod no se envía. Con poco volumen puede dispararse por pocos casos (D1): el operador revisa el volumen en el dashboard antes de actuar.
 3. **Given** un pico de excepciones no controladas o de aperturas de circuit breaker en un periodo corto, en cualquier entorno, **When** esto ocurre, **Then** una regla de alerta lo notifica por correo, indicando el entorno, antes de que el operador necesite revisar el dashboard.
 4. **Given** el endpoint de salud falla en 3 chequeos seguidos, **When** se evalúa el monitor, **Then** llega un correo de indisponibilidad; un fallo aislado no lo dispara.
 
@@ -167,6 +168,7 @@ Como equipo del proyecto, queremos mostrar en una presentación de 15 minutos la
 - ¿Qué pasa si un payload de error contiene por accidente un dato sensible (p. ej. un token en un mensaje de excepción)? Debe existir un mecanismo de saneamiento antes del envío, no depender de la disciplina de cada punto de instrumentación.
 - ¿Qué pasa si un chequeo de salud falla una sola vez por un cold start lento? Cuenta en la disponibilidad del periodo, pero no dispara correo; la alerta exige 3 fallos seguidos.
 - ¿Qué pasa con las pruebas en entornos que no son prod? Sus datos quedan en Sentry separados por entorno, pero no disparan las alertas de negocio.
+- ¿Qué pasa si en una hora de prod solo 1 o 2 pasajeros llegan a un estado final? La alerta de autoservicio puede dispararse por un solo caso en revisión manual (D1); el volumen visible en el dashboard indica si la alerta es representativa.
 - ¿Qué pasa en un cold start (primera invocación del proceso serverless)? La inicialización de la observabilidad no debe repetirse ni fallar en invocaciones "warm" subsecuentes dentro del mismo proceso.
 - ¿Qué pasa si alguien cambia un umbral de alerta directamente en la UI de Sentry sin actualizar este spec? La UI de Sentry es la fuente de verdad operativa de los umbrales configurados; este spec documenta qué debe alertarse y con qué meta de referencia (los KR), no el valor exacto vigente en cada momento.
 
@@ -192,7 +194,7 @@ Como equipo del proyecto, queremos mostrar en una presentación de 15 minutos la
 - **FR-015**: El sistema NO DEBE intentar medir el tiempo de escalamiento a un agente humano ni el costo de contingencia mientras el componente de cola de escalamiento y consola de agente (fuera de alcance, Principio II) no exista; estas métricas quedan documentadas como diferidas (User Story 8) en vez de omitidas.
 - **FR-016**: DEBE existir un dashboard en el proyecto de Sentry `aeropass-back` (organización Aeropass) que muestre, separado o filtrable por entorno y sin configuración adicional por parte de quien lo consulta, las métricas de las Historias 1–6: tasa de excepciones no controladas, tasa de autoservicio, tasa de auto rechazo, disponibilidad, latencia p95/p99 de emisión/consulta de pase, y tasa de aperturas de circuit breaker.
 - **FR-017**: DEBEN existir reglas de alerta por correo electrónico en Sentry, con los mismos criterios que la app:
-  - Tasa de autoservicio por debajo de 85%: solo sobre prod, en periodos de 1 hora y solo cuando el periodo tiene al menos 10 pasajeros en estado final.
+  - Tasa de autoservicio por debajo de 85%: solo sobre prod y en periodos de 1 hora. Sentry no permite condicionar la alerta a un volumen mínimo, así que evalúa la hora completa sin exigir 10 pasajeros en estado final. El correo invita a revisar el volumen en el dashboard antes de actuar (desviación D1, aceptada por el usuario el 2026-09-24).
   - Pico de excepciones no controladas o de aperturas de circuit breaker en una ventana corta: en todos los entornos, indicando el entorno en el correo.
   - Disponibilidad: correo tras 3 chequeos de salud fallidos seguidos (unos 3 minutos); un fallo aislado no alerta. El cumplimiento del 99,9% del periodo se muestra en el dashboard.
 - **FR-018**: Las alertas y el dashboard DEBEN configurarse de forma manual en la interfaz de Sentry para este ciclo (no como código versionado en el repositorio); un cambio de umbral se aplica directamente ahí.

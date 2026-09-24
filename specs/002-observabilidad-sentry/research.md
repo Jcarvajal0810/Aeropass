@@ -88,7 +88,7 @@ Además, cada evento de auditoría se envía como **log** de Sentry (`aeropass.e
 ## §11 Alertas y la regla de volumen mínimo (FR-017)
 
 - **Decisión**: igual que la app (desviación **D1**). Los monitores de métricas de Sentry no pueden exigir "al menos 10 pasajeros en estado final", así que la alerta de autoservicio evalúa la hora completa y el correo sugiere revisar el volumen en el dashboard. Detalle en [contracts/dashboard-and-alerts.md](contracts/dashboard-and-alerts.md).
-- **Razón**: la clarificación pidió "las mismas reglas que la app"; el usuario ya aceptó D1 para la app el 2026-09-23. **Pendiente**: confirmar que la acepta también aquí y ajustar FR-017.
+- **Razón**: la clarificación pidió "las mismas reglas que la app"; el usuario aceptó D1 para la app el 2026-09-23 y para el backend el 2026-09-24. FR-017 y la Historia 7 ya están ajustados.
 - **Alternativas**: un evaluador programado que consulte la API de Sentry. Descartado: es código nuevo y contradice la configuración manual (FR-018).
 
 ## §12 Preparación de la demo (FR-019, Historia 9)

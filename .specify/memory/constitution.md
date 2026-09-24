@@ -1,6 +1,32 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.0.0 → 1.1.0
+Bump rationale: MINOR. Observability moves into this repo's scope (Principle II) and Principle VI is
+materially redefined from "hooks only" to "implemented behind the hooks"; Principle I gains a
+clarification. No principle is removed and no existing rule becomes incompatible.
+Approved by: the user, for feature 002-observabilidad-sentry (2026-09-24).
+
+Modified principles:
+  - I. Canonical Tech Stack (Serverless on Vercel): observability row clarified (Sentry SDK
+    satisfies "OpenTelemetry + Sentry" while instrumentation goes through the hooks)
+  - II. Bounded Scope with Extension Points: observability added to the in-scope list and removed
+    from the out-of-scope list
+  - VI. Observability Enabled, Not Implemented Here → VI. Observability Behind Hooks
+Added sections: none
+Removed sections: none
+
+Dependent templates (read the constitution at runtime; not modified by this command):
+  - .specify/templates/plan-template.md      ✅ no change needed (generic "Constitution Check")
+  - .specify/templates/spec-template.md      ✅ no change needed
+  - .specify/templates/tasks-template.md     ✅ no change needed
+  - specs/002-observabilidad-sentry/plan.md  ⚠ Constitution Check rows I, II and VI to be marked
+    resolved (feature artifact, updated outside this command)
+
+Deferred TODOs: none.
+
+Previous report (1.0.0)
+-----------------------
 Version change: (template, unversioned) → 1.0.0
 Bump rationale: first ratification of the constitution; all placeholders replaced.
 
@@ -50,6 +76,9 @@ written for AWS/Next.js is translated to this stack before being used:
 
 Derived rules:
 
+- The observability row is satisfied by the Sentry SDK used directly, as long as every span, audit
+  record and metric goes through the hooks of Principle VI. Moving to OpenTelemetry MUST then only
+  require replacing the registered sink, never touching services or domain code.
 - There is no separate API Gateway: each FastAPI endpoint MUST apply its own validations (Clerk
   authentication, authorization, input validation).
 - QStash is point-to-point HTTP delivery with retries, NOT pattern-based pub-sub; consumers MUST
@@ -70,10 +99,13 @@ This repo implements ONLY:
    the server.
 3. **Digital identity creation** — event published via QStash after a successful verification.
 4. **Dynamic QR generation** — `passes` endpoint → Upstash Redis (single-use token) + QStash.
+5. **Observability** — the sinks that connect the Principle VI hooks to Sentry (isolated in
+   `adapters/observability/`), the unauthenticated health endpoint (`/health`) and the tooling that
+   prepares demo telemetry data.
 
 Out of scope in this cycle (handled by other teammates): checkpoint validation (`validate`
-endpoint), human agent console and escalation queue, full observability, and airline/GDS
-integration (`flights` endpoint).
+endpoint), human agent console and escalation queue, and airline/GDS integration (`flights`
+endpoint).
 
 - Out-of-scope code MUST NOT be implemented here.
 - The design MUST leave abstract interfaces and defined event contracts so those parts can be
@@ -114,15 +146,25 @@ without touching the core.
 **Rationale:** in serverless a hung wait consumes execution time and degrades the whole passenger
 experience.
 
-### VI. Observability Enabled, Not Implemented Here
+### VI. Observability Behind Hooks
 
-- Full observability (OpenTelemetry + Sentry, technical/business metrics, failure simulation) is
-  another team's responsibility.
-- This backend MUST expose the necessary hooks (spans around each pipeline step and each external
-  call, metric emission points) without their absence blocking the functional implementation.
+- Observability (errors, traces, audit records, technical and business metrics) is implemented in
+  this repo **behind the hooks** of `observability/hooks.py`: `@traced`, `@audited`, `span()` and
+  `emit_audit()`.
+- Domain, services and API code MUST only use those hooks. They MUST NOT import the observability
+  provider's SDK; only `adapters/observability/` does.
+- Every pipeline step and every external call MUST be instrumented with a hook (spans around each
+  step and each external call, audit records at metric emission points).
+- Telemetry MUST NEVER block, noticeably delay or fail a business request, including when the
+  provider is unavailable. Without provider credentials the system MUST behave exactly as without
+  observability.
+- No telemetry MAY carry identity document data or images, biometric samples or scores, credential
+  tokens or QR payloads, signing keys or authorization headers.
+- Failure simulation (fault injection) remains out of scope in this cycle.
 
-**Rationale:** decouples this team's progress from the observability team's without losing future
-traceability.
+**Rationale:** the hooks keep business code independent of the provider, so observability can be
+added, changed or removed without touching the core; the privacy and non-blocking rules make the
+observability itself safe to run in an airport identity system.
 
 ## Mandatory Design Patterns
 
@@ -194,4 +236,4 @@ part.
 - **Compliance:** every PR and every plan MUST verify compliance; scope changes (e.g. bringing
   `validate` or `flights` into this repo) require an amendment of Principle II.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-23 | **Last Amended**: 2026-09-23
+**Version**: 1.1.0 | **Ratified**: 2026-09-23 | **Last Amended**: 2026-09-24

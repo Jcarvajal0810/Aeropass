@@ -58,21 +58,23 @@ Enfoque técnico (detalle en [research.md](research.md)):
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
+Evaluado contra la **constitución 1.1.0** (enmienda aprobada por el usuario el 2026-09-24).
+
 | Principio / patrón | Estado | Cómo se cumple |
 |---|---|---|
-| I. Stack canónico | ⚠️ Desviación registrada | Sentry es la plataforma mandatada, pero se usa su SDK directamente y no OpenTelemetry como pide "OpenTelemetry + Sentry" (y el anexo B). Decisión del usuario (2026-09-24), en Complexity Tracking. Los hooks permiten conectar OTel después sin tocar servicios (research §1). Idempotente ante cold starts (research §2). |
-| II. Alcance acotado | ⚠️ **Requiere enmienda** | El Principio II lista "full observability" como fuera de alcance, a cargo de otro equipo, y la Gobernanza exige enmendarlo para traer ese alcance a este repo. La implementación vive aislada en `adapters/observability/` y `/health`, y los servicios solo ganan anotaciones declarativas. Ver Complexity Tracking. |
+| I. Stack canónico | ✅ | La 1.1.0 aclara que el SDK de Sentry cumple "OpenTelemetry + Sentry" mientras toda la instrumentación pase por los hooks. Migrar a OTel solo cambia el sink (research §1). Idempotente ante cold starts (research §2). |
+| II. Alcance acotado | ✅ | La 1.1.0 incluye la observabilidad en el alcance: sinks en `adapters/observability/`, `/health` y la herramienta de demo. `validate`, la consola y `flights` siguen fuera; los servicios solo ganan anotaciones declarativas. |
 | III. SOLID | ✅ | Sinks, filtro y checks de salud son clases de una sola responsabilidad. `HealthService` recibe `HealthCheck` por abstracción. Una métrica nueva se agrega con `describe` o con una entrada en el mapeo del sink, sin modificar clases existentes. |
 | IV. DRY | ✅ | Qué estados son finales vive en `Pasajero.estado_final`; los nombres de eventos, métricas y atributos, en un solo módulo (`telemetry_catalog.py`) que usan sink, filtro y prueba de contrato. |
 | V. Circuit breaker | ✅ | Sin cambios de comportamiento; ahora cada apertura (incluida la reapertura desde `HALF_OPEN`) se audita y cada llamada corre en un span con estado. Los checks de salud tienen timeout explícito; DB y Redis no están en la lista de dependencias inestables. |
-| VI. Hooks de observabilidad | ✅ / ⚠️ | Se usan los hooks existentes y se extienden sin romperlos (`span()` público, `describe` opcional). El título "not implemented here" se revisa en la misma enmienda del Principio II. |
+| VI. Observabilidad detrás de los hooks | ✅ | Solo `adapters/observability/` importa `sentry_sdk`. Los hooks se extienden sin romperlos (`span()` público, `describe` opcional). La telemetría no bloquea (flush con `wait_until`, research §3) y el filtro con lista blanca excluye los datos prohibidos (research §4). La inyección de fallos sigue fuera de alcance. |
 | Patrón Decorator | ✅ | `@audited(describe=...)` agrega métricas sin modificar la lógica del facade. |
 | Patrón Singleton | ✅ | El cliente de Sentry es global por proceso; `/health` reutiliza el pool de Neon y el cliente de Redis existentes. |
 | Patrón Factory / mocks | ✅ | Sin DSN el sink no se registra; en pruebas, un transporte en memoria reemplaza la red. `seed_demo` usa los adaptadores `fake` existentes. |
 | Revisión: hooks presentes | ✅ | Todo punto nuevo (breaker, `/health`) queda instrumentado. |
 | Seguridad | ✅ | DSN por variable de entorno en Vercel, nunca en el repo; `SENTRY_AUTH_TOKEN` no se usa. `/health` no revela versiones, hosts ni errores. |
 
-**Re-check post-diseño (Phase 1)**: sin cambios. Los contratos no agregan tablas, estado en memoria ni tipos de Sentry en `domain/` o `services/`. Siguen abiertos la enmienda de los Principios II y VI, prerrequisito de la primera tarea de implementación, y la desviación D1. El usuario aceptó la desviación de OTel. Para no dejarla como una excepción permanente, la misma enmienda aclara el Principio I: el SDK de Sentry es válido mientras la instrumentación pase por los hooks de `observability/hooks.py`.
+**Re-check post-diseño (Phase 1)**: todo en verde contra la 1.1.0. Los contratos no agregan tablas, estado en memoria ni tipos de Sentry en `domain/` o `services/`. La enmienda y la desviación D1 quedaron aprobadas por el usuario el 2026-09-24; no hay puntos abiertos antes de `/speckit-tasks`.
 
 ## Project Structure
 
@@ -138,7 +140,7 @@ tests/
 pyproject.toml                                # MODIFICA: sentry-sdk[fastapi]
 .env.example                                  # MODIFICA: SENTRY_DSN, SENTRY_ENVIRONMENT, SENTRY_TRACES_SAMPLE_RATE
 README.md                                     # MODIFICA: sección de observabilidad; quitar "Full observability" de pendientes
-.specify/memory/constitution.md               # MODIFICA (vía /speckit-constitution): enmienda II y VI, aclaración del I
+.specify/memory/constitution.md               # HECHO: versión 1.1.0 (enmienda II y VI, aclaración del I)
 ```
 
 **Structure Decision**: un solo servicio FastAPI con la organización existente (`domain/`, `ports/`, `services/`, `adapters/`, `api/`). Todo lo que importa `sentry_sdk` vive en `adapters/observability/`. Dominio y servicios solo conocen `observability/hooks.py` y el catálogo. La configuración de Sentry es manual y queda documentada en `contracts/dashboard-and-alerts.md`.
@@ -147,8 +149,8 @@ README.md                                     # MODIFICA: sección de observabil
 
 | Violación / desviación | Por qué hace falta | Alternativa más simple descartada porque |
 |---|---|---|
-| **SDK de Sentry sin OpenTelemetry** (Principio I y anexo B piden OTel hacia un backend externo) | Entregar antes de la presentación, con la misma configuración y las mismas consultas que la app | OTel con Sentry como destino: más configuración, un segundo modelo de spans y menos madurez en Python. **Decisión del usuario (2026-09-24).** Migrar después no toca servicios: basta cambiar el sink de los hooks. |
-| **Enmienda de los Principios II y VI** (observabilidad pasa a estar en el alcance de este repo), **con aclaración del I** (SDK de Sentry detrás de los hooks) | La feature implementa en este repo lo que la constitución asigna a "otro equipo". La Gobernanza exige enmienda para cambios de alcance. | Implementarla en otro repo: los sinks deben registrarse dentro del proceso del backend y `/health` debe ser una ruta de esta app. **Requiere aprobación del equipo (Gobernanza) antes de implementar.** |
+| **SDK de Sentry sin OpenTelemetry** (Principio I y anexo B piden OTel hacia un backend externo) | Entregar antes de la presentación, con la misma configuración y las mismas consultas que la app | OTel con Sentry como destino: más configuración, un segundo modelo de spans y menos madurez en Python. **Decisión del usuario (2026-09-24); la constitución 1.1.0 lo admite en el Principio I.** Migrar después no toca servicios: basta cambiar el sink de los hooks. |
+| **Enmienda de los Principios II y VI** (observabilidad pasa a estar en el alcance de este repo), **con aclaración del I** (SDK de Sentry detrás de los hooks) | La feature implementa en este repo lo que la constitución asigna a "otro equipo". La Gobernanza exige enmienda para cambios de alcance. | Implementarla en otro repo: los sinks deben registrarse dentro del proceso del backend y `/health` debe ser una ruta de esta app. **Aprobada por el usuario (2026-09-24): constitución 1.1.0.** |
 | Extender `observability/hooks.py` (`span()` público, `describe` en `@audited`) | El breaker necesita un span con nombre dinámico, y el facade tiene que declarar el resultado después del `commit` | Emitir desde dentro de los servicios: se emitiría antes del `commit` o mezclaría telemetría con lógica (research §6–§7). |
-| **D1 — Alerta de autoservicio sin el mínimo de 10 pasajeros** | Sentry no permite condicionar un monitor al volumen | Un evaluador programado contra la API de Sentry es código nuevo y contradice FR-018. **Pendiente de confirmación del usuario; ya se aceptó igual para la app.** |
+| **D1 — Alerta de autoservicio sin el mínimo de 10 pasajeros** | Sentry no permite condicionar un monitor al volumen | Un evaluador programado contra la API de Sentry es código nuevo y contradice FR-018. **Aceptada por el usuario (2026-09-24), igual que en la app; FR-017 ajustado.** |
 | Middleware de flush con `wait_until` | En serverless, la cola del SDK puede perderse al congelarse el proceso | Flush síncrono: suma hasta 2 s por respuesta (research §3). |
