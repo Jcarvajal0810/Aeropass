@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Vercel Blob
     blob_read_write_token: str = ""
-    blob_timeout_seconds: float = Field(default=3.0, gt=0)
+    blob_timeout_seconds: float = Field(default=10.0, gt=0)
 
     # Upstash Redis
     upstash_redis_rest_url: str = ""
@@ -44,12 +44,14 @@ class Settings(BaseSettings):
     qr_ttl_seconds: int = 45
 
     # Biometric provider
-    biometric_provider: Literal["mock", "vision"] = "mock"
+    biometric_provider: Literal["mock", "vision", "mxface"] = "mock"
     biometric_liveness_threshold: float = 0.80
     biometric_match_threshold: float = 0.80
     biometric_timeout_seconds: float = Field(default=4.0, gt=0)
     vision_provider_url: str = ""
     vision_provider_api_key: str = ""
+    mxface_subscription_key: str = ""
+    mxface_base_url: str = "https://faceapi.mxface.ai/api/v3"
 
     # Sentry (spec 002). An empty DSN turns observability off.
     sentry_dsn: str = ""

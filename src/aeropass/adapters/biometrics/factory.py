@@ -7,6 +7,7 @@ import logging
 import httpx
 
 from aeropass.adapters.biometrics.mock_adapter import MockBiometricAdapter
+from aeropass.adapters.biometrics.mxface_adapter import MxFaceAdapter
 from aeropass.adapters.biometrics.vision_adapter import VisionProviderAdapter
 from aeropass.adapters.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
 from aeropass.config import Settings
@@ -45,6 +46,12 @@ class BiometricProviderFactory:
                 httpx.AsyncClient(),
                 settings.vision_provider_url,
                 settings.vision_provider_api_key,
+            )
+        elif settings.biometric_provider == "mxface":
+            inner = MxFaceAdapter(
+                httpx.AsyncClient(),
+                settings.mxface_subscription_key,
+                settings.mxface_base_url,
             )
         else:
             inner = MockBiometricAdapter()

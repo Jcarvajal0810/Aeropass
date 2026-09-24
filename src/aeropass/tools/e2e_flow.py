@@ -3,12 +3,18 @@
 Usage::
 
     CLERK_SECRET_KEY=sk_... uv run python -m aeropass.tools.e2e_flow \
-        [--base-url https://aeropass-lac.vercel.app] [--user-id user_...] [--delete-user]
+        [--base-url https://aeropass-lac.vercel.app] [--user-id user_...] [--delete-user] \
+        [--only-register] [--nombre ...] [--tipo-documento CC|CE|PASAPORTE] \
+        [--numero-documento ...] [--fecha-vencimiento YYYY-MM-DD]
 
 Steps: a Clerk test user (new, unless ``--user-id``) gets a session through the Clerk Backend
 API, then the script calls, in order, ``POST /v1/identity`` -> ``POST /v1/biometrics/verifications``
 -> ``POST /v1/passes`` -> ``GET /v1/passes/{credencial_id}`` and prints status + body of each.
 Requires ``BIOMETRIC_PROVIDER=mock`` on the deployment: the selfie carries ``MOCK:ok``.
+
+``--only-register`` stops after ``POST /v1/identity`` and checks ``GET /v1/identity/me`` instead,
+leaving the passenger in ``PENDIENTE_VERIFICACION`` (seeds an account for testing the selfie from
+the app). The document flags override the default test document data.
 
 Session strategy: ``POST /v1/sessions`` (testing-only, development instances). If Clerk refuses it
 (production instance), falls back to a sign-in token redeemed on the Frontend API, whose host is
@@ -152,7 +158,14 @@ def show(step: str, response: httpx.Response) -> Any:
     return body
 
 
-def run(base_url: str, clerk: Clerk, user_id: str | None, delete_user: bool) -> bool:
+def run(
+    base_url: str,
+    clerk: Clerk,
+    user_id: str | None,
+    delete_user: bool,
+    documento: dict[str, str],
+    only_register: bool,
+) -> bool:
     created_user = user_id is None
     if user_id is None:
         user_id = clerk.create_user()
@@ -163,7 +176,7 @@ def run(base_url: str, clerk: Clerk, user_id: str | None, delete_user: bool) -> 
     try:
         session_id = clerk.create_session(user_id)
         print(f"Clerk session: {session_id}")
-        ok = _flow(base_url, lambda: clerk.session_jwt(session_id))
+        ok = _flow(base_url, lambda: clerk.session_jwt(session_id), documento, only_register)
     finally:
         if created_user and delete_user:
             clerk.delete_user(user_id)
@@ -171,27 +184,28 @@ def run(base_url: str, clerk: Clerk, user_id: str | None, delete_user: bool) -> 
     return ok
 
 
-def _flow(base_url: str, token: Any) -> bool:
+def _flow(base_url: str, token: Any, documento: dict[str, str], only_register: bool) -> bool:
     def auth() -> dict[str, str]:
         return {"Authorization": f"Bearer {token()}"}
 
     with httpx.Client(base_url=base_url, timeout=30) as api:
         # 1. Document registration (201 new, 200 identical resubmission for a reused user).
-        numero = "E2E" + secrets.token_hex(5).upper()
         r = api.post(
             "/v1/identity",
             headers=auth(),
-            data={
-                "nombre_completo": "Prueba E2E Aeropass",
-                "tipo_documento": "PASAPORTE",
-                "numero_documento": numero,
-                "fecha_vencimiento": (date.today() + timedelta(days=5 * 365)).isoformat(),
-            },
+            data=documento,
             files={"foto_documento": ("documento.jpg", make_image("documento"), "image/jpeg")},
         )
         show("1. POST /v1/identity", r)
         if r.status_code not in (200, 201):
             return _fail("identity registration")
+
+        if only_register:
+            r = api.get("/v1/identity/me", headers=auth())
+            body = show("2. GET /v1/identity/me", r)
+            if r.status_code != 200 or not body or body.get("estado") != "PENDIENTE_VERIFICACION":
+                return _fail("registration check (expected 200 + estado=PENDIENTE_VERIFICACION)")
+            return True
 
         # 2. Selfie verification: the mock provider reads MOCK:ok -> EXITOSO.
         r = api.post(
@@ -229,7 +243,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--user-id", help="reuse this Clerk user instead of creating one")
     parser.add_argument("--delete-user", action="store_true", help="delete the created user")
     parser.add_argument("--frontend-api", help="Clerk Frontend API host (fallback flow only)")
+    parser.add_argument(
+        "--only-register", action="store_true", help="stop after POST /v1/identity (+ GET /me)"
+    )
+    parser.add_argument("--nombre", default="Prueba E2E Aeropass")
+    parser.add_argument("--tipo-documento", default="PASAPORTE")
+    parser.add_argument("--numero-documento", help="default: random E2E<hex>")
+    parser.add_argument(
+        "--fecha-vencimiento", default=(date.today() + timedelta(days=5 * 365)).isoformat()
+    )
     args = parser.parse_args(argv)
+    documento = {
+        "nombre_completo": args.nombre,
+        "tipo_documento": args.tipo_documento,
+        "numero_documento": args.numero_documento or "E2E" + secrets.token_hex(5).upper(),
+        "fecha_vencimiento": args.fecha_vencimiento,
+    }
 
     secret = os.environ.get("CLERK_SECRET_KEY")
     if not secret:
@@ -240,8 +269,16 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     print(f"Target: {args.base_url}")
-    ok = run(args.base_url.rstrip("/"), Clerk(secret, frontend_api), args.user_id, args.delete_user)
-    print("\n[OK] FULL FLOW PASSED" if ok else "\n[FAIL] FLOW DID NOT COMPLETE")
+    ok = run(
+        args.base_url.rstrip("/"),
+        Clerk(secret, frontend_api),
+        args.user_id,
+        args.delete_user,
+        documento,
+        args.only_register,
+    )
+    passed = "[OK] REGISTRATION PASSED" if args.only_register else "[OK] FULL FLOW PASSED"
+    print(f"\n{passed}" if ok else "\n[FAIL] FLOW DID NOT COMPLETE")
     return 0 if ok else 1
 
 

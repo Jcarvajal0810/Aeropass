@@ -79,6 +79,72 @@ with `pgserver` (dev dependency; data in `.pgdata/`). `pgserver` ships wheels on
 the network or a real Sentry DSN; they capture telemetry with an in-memory transport
 (`tests/support/sentry_capture.py`).
 
+## Biometric Provider Testing (MxFace)
+
+All biometric providers implement the same port,
+[`ports/biometric_provider.py`](src/aeropass/ports/biometric_provider.py)
+(`BiometricProvider.evaluate(selfie, referencia) -> BiometricResult`). Only the adapter knows the
+vendor. The pass/fail decision is always made by the domain
+([`domain/verification.py`](src/aeropass/domain/verification.py)), which compares the scores with
+the configured thresholds. The adapters in `adapters/biometrics/` are:
+
+| Adapter | What it is | Cost |
+|---|---|---|
+| `MockBiometricAdapter` (`mock_adapter.py`) | Fake, driven by the `MOCK:<marker>` inside the selfie | Free, no network, unlimited |
+| `MxFaceAdapter` (`mxface_adapter.py`) | Real, calls the MxFace API (`/face/verify` + `/face/Liveness`) | **4 transactions/day** per API on the free tier |
+| `VisionProviderAdapter` (`vision_adapter.py`) | Generic HTTP vision provider | Depends on the vendor |
+
+`BiometricProviderFactory` wraps every adapter in the circuit breaker. A provider failure
+(5xx/4xx, timeout, malformed response) becomes a `NO_CONCLUYENTE` attempt and never blocks the
+request.
+
+### Tests without spending quota
+
+These tests use the mock and an `httpx.MockTransport` that serves the real MxFace response shapes.
+They do not use the network, cost nothing, and can be run as often as needed:
+
+```bash
+uv run pytest tests/unit/test_mock_biometric_adapter.py -v
+uv run pytest tests/contract/test_mxface_adapter_contract.py -v
+```
+
+### Manual smoke test against the real API
+
+```bash
+export MXFACE_SUBSCRIPTION_KEY=...        # or put it in .env
+uv run python -m aeropass.tools.smoke_test_mxface <selfie.jpg> <document.jpg>
+```
+
+Each run spends **2 transactions** (1 verify + 1 liveness) of the 4/day free-tier quota, so the
+script asks for confirmation before calling the API. It is never run by pytest or CI.
+
+### Choosing the provider
+
+Set the provider in the environment: `BIOMETRIC_PROVIDER=mock | mxface | vision` (plus
+`MXFACE_SUBSCRIPTION_KEY` for `mxface`). The composition root (`api/deps.py`) calls the factory,
+which does roughly this:
+
+```python
+def create(settings, breaker):
+    if settings.biometric_provider == "mxface":
+        inner = MxFaceAdapter(httpx.AsyncClient(), settings.mxface_subscription_key)
+    elif settings.biometric_provider == "vision":
+        inner = VisionProviderAdapter(...)
+    else:
+        inner = MockBiometricAdapter()
+    return ResilientBiometricProvider(inner, breaker, settings.biometric_timeout_seconds)
+```
+
+### Liveness threshold
+
+MxFace returns `livenessScore` on a 0–100 scale, and the adapter normalizes it to 0–1. The cut-off
+is `BIOMETRIC_LIVENESS_THRESHOLD`, shared by all providers (default `0.80`). MxFace does not publish
+an official recommended cut-off, so start with `0.50` for MxFace and tune it from real results
+(the smoke test prints the raw score). For the face match, MxFace's own `matchResult` (1/0) is used
+as the verdict and mapped to a score of 1.0/0.0, so `BIOMETRIC_MATCH_THRESHOLD` has no effect with
+MxFace. Each evaluation makes two HTTP calls in parallel, and the free tier can be slow, so raise
+`BIOMETRIC_TIMEOUT_SECONDS` (default 4) if the breaker times out.
+
 ## Deploying to Vercel
 
 1. Connect Neon, a **private** Blob store, Upstash Redis and QStash to the project. Set the variables
