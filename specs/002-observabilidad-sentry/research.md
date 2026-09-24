@@ -32,7 +32,7 @@ Cada sección sigue el formato Decisión / Razón / Alternativas. Ninguna secci�
 - **Hallazgo**: con la configuración por defecto, `sentry_sdk.init` revisa unas 50 integraciones automáticas importando cada librería candidata. Medido en proceso, con el release definido como en Vercel, **tomaba 436 ms en cada arranque en frío**.
 - **Decisión**: `auto_enabling_integrations=False` y la lista explícita de lo que se usa: Starlette, FastAPI, logging, SQLAlchemy y httpx. **La inicialización baja a 45 ms.** Una prueba en `test_observability_setup.py` verifica que las cinco integraciones sigan instaladas.
 - Sin `VERCEL_GIT_COMMIT_SHA`, el SDK busca el release con `git rev-parse`, que suma ~60 ms. Solo pasa en local.
-- **Pendiente** en el despliegue: la latencia real de `/health` en frío y en caliente (T055).
+- **Latencia de `/health` en el deploy (T055, medido 2026-09-24)**: `curl -o /dev/null -s -w "%{time_total}\n" https://aeropass-lac.vercel.app/health` contra `prod`, 4 requests consecutivos: 1.487 s, 1.354 s, 1.393 s, 1.370 s (todos 200). No se ve una diferencia clara de arranque en frío en esta ráfaga, porque la función probablemente ya quedó caliente tras el primer request; para aislar el frío haría falta esperar varios minutos de inactividad antes de medir un único request.
 
 ## §4 Privacidad (FR-006, SC-003)
 
