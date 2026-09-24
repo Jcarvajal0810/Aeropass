@@ -99,6 +99,38 @@ with `pgserver` (dev dependency; data in `.pgdata/`).
 Each QR lives at most 60 s, so the ones issued with the previous key expire on their own.
 Checkpoints fetch the new key from `/.well-known/jwks.json`, which is cached for 5 min.
 
+## Observability (Sentry)
+
+Spec: [`specs/002-observabilidad-sentry/`](specs/002-observabilidad-sentry/spec.md). Errors,
+traces, audit logs and business metrics go to the Sentry project `aeropass-back`. Without
+`SENTRY_DSN` nothing is sent and the backend behaves exactly the same.
+
+### Preparing the 15-minute demo
+
+The dashboard's business widgets need data, and the hourly alerts cannot fire during a short
+presentation. `seed_demo` runs the passenger flow in process (fake Clerk, Blob, Redis and QStash;
+mock biometric provider) against a **non-prod** database and sends real telemetry:
+
+```bash
+SENTRY_DSN=<dsn> SENTRY_ENVIRONMENT=demo DATABASE_URL=<non-prod database, migrated> \
+  uv run --python 3.11 python -m aeropass.tools.seed_demo --contingencia
+```
+
+1. Run it **at least one hour before** the presentation. It prints the self-service and
+   auto-rejection rates the dashboard should show. It refuses to run with
+   `SENTRY_ENVIRONMENT=prod`.
+2. During the presentation, filter the dashboard by the `demo` environment:
+   - W3: self-service rate (KR A1.2).
+   - W4: auto-rejection by reason.
+   - W6: pass latency.
+   - W7: the `biometric` circuit opening (alert B3, triggered by `--contingencia`).
+   - W8: inconclusive verifications.
+3. To show an immediate alert live, run the tool again with `--solo-error`. It raises one
+   unhandled error on a route that only exists inside the tool, and the B1 email arrives in
+   under 2 minutes.
+4. The self-service alert (B2) only evaluates `prod` over one hour. Show its configuration with
+   the seeded data; do not claim it fired live.
+
 ## Out of scope for this repo
 
 These parts are handled by other teams:

@@ -97,6 +97,12 @@ def reset_observability() -> None:
     _configured = False
 
 
+def flush_telemetry(timeout: float = FLUSH_TIMEOUT_SECONDS) -> None:
+    """Send what is queued now (short-lived processes such as tools)."""
+    if sentry_sdk.get_client().is_active():
+        sentry_sdk.flush(timeout)
+
+
 def schedule_flush() -> None:
     """Send what is queued after the response; a no-op outside a Vercel invocation."""
     if not sentry_sdk.get_client().is_active():

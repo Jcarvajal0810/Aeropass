@@ -251,20 +251,20 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 **Independent Test**: `seed_demo` con el transporte en memoria genera la mezcla esperada de métricas y logs. `--solo-error` produce exactamente un error no controlado. `--contingencia` produce una apertura de `biometric`.
 
-- [ ] T042 [P] [US9] Escribir `tests/integration/test_seed_demo.py`: ejecutar la función principal de la herramienta con el transporte en memoria y la base de pruebas, y comprobar:
+- [X] T042 [P] [US9] Escribir `tests/integration/test_seed_demo.py`: ejecutar la función principal de la herramienta con el transporte en memoria y la base de pruebas, y comprobar:
   - al menos 1 `estado_final=VERIFICADO` y 1 `REQUIERE_REVISION_MANUAL`;
   - intentos `FALLIDO` de ambos motivos y al menos 1 `NO_CONCLUYENTE`;
   - transacciones de pase;
   - `--contingencia` → métrica de apertura `biometric`;
   - `--solo-error` → un solo evento no controlado y ninguna métrica.
-- [ ] T043 [US9] Implementar `src/aeropass/tools/seed_demo.py` según research §12:
+- [X] T043 [US9] Implementar `src/aeropass/tools/seed_demo.py` según research §12:
   - app en proceso con adaptadores `fake`, `DATABASE_URL` de una base que no sea prod y `SENTRY_DSN`/`SENTRY_ENVIRONMENT` del entorno; se niega a correr con `SENTRY_ENVIRONMENT=prod`;
   - pasajeros `ok`, pasajeros con tres `spoof`/`other` e intentos `timeout`, emisiones y consultas de pase;
   - `--contingencia`: timeout biométrico corto y 5 `timeout` seguidos;
   - `--solo-error`: ruta que solo existe en la app de la herramienta;
   - imprime la tasa de autoservicio y de auto rechazo esperadas y hace `sentry_sdk.flush()` al terminar.
   Hace pasar T042.
-- [ ] T044 [US9] Documentar en `README.md` (sección nueva "Observabilidad (Sentry)") el procedimiento de la demo: correr `seed_demo` al menos 1 hora antes, en `demo`; qué mostrar de cada widget; `--solo-error` en vivo para B1; y que B2 se muestra configurada, sin afirmar que disparó (Historia 9, escenario 3).
+- [X] T044 [US9] Documentar en `README.md` (sección nueva "Observabilidad (Sentry)") el procedimiento de la demo: correr `seed_demo` al menos 1 hora antes, en `demo`; qué mostrar de cada widget; `--solo-error` en vivo para B1; y que B2 se muestra configurada, sin afirmar que disparó (Historia 9, escenario 3).
 
 **Checkpoint**: la herramienta puebla cualquier entorno que no sea prod.
 
