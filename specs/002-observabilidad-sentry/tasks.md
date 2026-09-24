@@ -191,7 +191,7 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Tests (primero)
 
-- [ ] T033 [P] [US3] Escribir `tests/integration/test_audit_logs.py`:
+- [X] T033 [P] [US3] Escribir `tests/integration/test_audit_logs.py`:
   - `POST /v1/passes` exitoso → log `credential.issue` `ok`;
   - `POST /v1/passes` sin identidad activa → log `credential.issue` `error` con `aeropass.error_type=IdentidadNoActiva` y sin mensaje;
   - token inválido → log `auth.authenticate` `error`;
@@ -200,7 +200,7 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Implementación
 
-- [ ] T034 [US3] Ajustar `SentryAuditSink` (`src/aeropass/adapters/observability/sentry_sinks.py`) o la política del catálogo hasta que T033 pase. Si algún `@audited` emite atributos extra, deben pasar por la lista blanca.
+- [X] T034 [US3] Ajustar `SentryAuditSink` (`src/aeropass/adapters/observability/sentry_sinks.py`) o la política del catálogo hasta que T033 pase. Si algún `@audited` emite atributos extra, deben pasar por la lista blanca. *Resultado: no hizo falta ningún cambio. Si la autenticación exitosa también se registrara (prueba de mutación), falla la prueba de "solo errores de autenticación".*
 
 **Checkpoint**: la auditoría es consultable en Sentry.
 
