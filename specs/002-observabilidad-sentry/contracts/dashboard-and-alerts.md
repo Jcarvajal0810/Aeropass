@@ -7,14 +7,14 @@ Se configuran **a mano** en la UI de Sentry (organización Aeropass, proyecto `a
 ## Estado en Sentry (2026-09-24)
 
 - **Proyecto `aeropass-back`** (id `4512133546442752`): "Prevent Storing of IP Addresses" activado. Data Scrubbing y sus reglas por defecto activos.
-- **Dashboard** https://aeropass.sentry.io/dashboard/10191181/ con 10 de 11 widgets. Falta W5 (ver §Estado T048).
+- **Dashboard** https://aeropass.sentry.io/dashboard/10191181/ con los 11 widgets. W5 es un widget de texto (ver §Estado T048).
   - W3, W4, W7 y W8 (métricas) usan `categorical_bar` o `line`: el dataset de métricas no admite tablas.
   - Para ver solo el backend, abrir el dashboard con `?project=4512133546442752`.
 - **B1**: alerta `6062331` sobre el detector "Issue Stream" (`10417832`). Cada evento con `handled:no` envía un correo a `#aeropass-team`, máximo uno cada 5 min, en todos los entornos.
 - **B2**: monitor `10436324` con la ecuación `sum_if(aeropass.estado contiene VERIFICADO) / sum(total)` sobre `aeropass.pasajero.estado_final`. Condición < 0,85 en 1 hora, solo `prod`, asignado a `#aeropass-team`. Alerta `6062356`: correo, máximo uno por hora.
   - La UI solo ofrece entornos que ya tienen datos. Como `prod` todavía no existe, el monitor se creó sin entorno y se le fijó `prod` por API (`PUT` al detector, `queryType: 1`).
 - **B3**: monitor `10436299` con `sum(aeropass.circuit_breaker.apertura)` > 0 en 10 min, todos los entornos. Alerta `6062338`: correo, máximo uno cada 10 min.
-- **Monitor de Uptime**: creado (id `10437854`). **B4 y widget W5**: pendientes de configuración manual en la UI de Sentry (ver §Estado T048).
+- **Monitor de Uptime**: `10437854`. **B4**: alerta `6063447`. **W5**: widget de texto. Detalle en §Estado T048.
 - **Datos de validación** en el entorno `simulated`, generados con `seed_demo --contingencia` contra un Postgres local. Resultado: 14 pasajeros verificados y 2 en revisión manual (autoservicio 87,5 %); intentos 14 exitosos, 8 fallidos y 7 no concluyentes (auto rechazo 36,4 %); 1 apertura de `biometric`; latencia p95 de pase 114 ms en la emisión y 17 ms en la consulta.
 - **Verificación en vivo (T051)**: `seed_demo --solo-error` produjo el issue `AEROPASS-BACK-2` ("RuntimeError: [redactado]") y B1 se disparó 26 s después. B3 también se disparó con la apertura de `biometric`.
 
@@ -82,8 +82,8 @@ Todos los correos indican entorno y métrica, sin datos sensibles.
 - Security & Privacy: activar "Prevent Storing of IP Addresses" y dejar el Data Scrubbing por defecto.
 - Variables en Vercel (prod): `SENTRY_DSN`, `SENTRY_ENVIRONMENT=prod`, `SENTRY_TRACES_SAMPLE_RATE=0.2`.
 
-## Estado T048 (2026-09-24, actualizado)
+## Estado T048 (2026-09-24)
 
-- **Monitor de Uptime**: creado, id `10437854`, `https://aeropass-lac.vercel.app/health`, GET, cada 60 s, timeout 10 s, 3 fallos abren / 1 éxito cierra, entorno `prod`. https://aeropass.sentry.io/monitors/10437854/
-- **Alerta B4**: **pendiente**. Falta crear la regla que conecta el monitor `10437854` a un email a `#aeropass-team` (Sentry → Alerts → Create Alert → tipo Uptime → seleccionar el monitor → acción email). No se pudo hacer por API/conector (403 de permisos); es manual en la UI.
-- **Widget W5**: **pendiente**. Falta agregarlo al dashboard `10191181` (Add Widget → "W5 · Disponibilidad (meta ≥99,9%)" → dataset Uptime si el editor lo ofrece, si no, un widget de texto con el enlace al monitor `10437854`). Tampoco disponible por API/conector; es manual en la UI.
+- **Monitor de Uptime**: id `10437854`, `https://aeropass-lac.vercel.app/health`, GET, cada 60 s, timeout 10 s, 3 fallos abren / 1 éxito cierra, entorno `prod`. https://aeropass.sentry.io/monitors/10437854/
+- **Alerta B4**: `6063447`, "B4 - Backend no disponible (uptime /health)". Se creó desde el monitor (Edit → 7. Alert → Create New Alert), así que solo se dispara con issues de ese monitor. Correo al equipo `#aeropass-team` en cada disparo (issue nuevo, resuelto, escalado o regresión).
+- **Widget W5**: el editor de widgets no ofrece dataset de Uptime (solo Errors, Spans, Logs, Application Metrics, Issues, Releases y Mobile Builds). Se aplicó la alternativa: widget "Text (Markdown)" con el enlace al monitor, su configuración y la meta de KR A2.1.

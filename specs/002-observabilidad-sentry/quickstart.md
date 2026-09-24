@@ -77,3 +77,15 @@ Esperado: un issue nuevo en `aeropass-back` (entorno `demo`) y el correo de B1 e
 ## §7 Cold start e idempotencia (FR-009)
 
 En el deploy de §3, hacer dos requests seguidos después de un redeploy. En Sentry no debe haber eventos duplicados, y en los logs de Vercel no debe haber errores de inicialización.
+
+## Estado de verificación (T056, 2026-09-24)
+
+| § | Estado | Evidencia |
+|---|---|---|
+| §1 | ✅ | `pytest -q` sin `SENTRY_DSN`, con `TEST_DATABASE_URL` sobre un Postgres embebido en un directorio limpio: **281 passed**, sin saltos. |
+| §2 | ✅ | Pruebas de privacidad: 22 passed (`test_sentry_privacy`, `test_telemetry_allowlist`, `test_no_pii_in_logs`) + 2 passed (`test_no_pii_in_sentry`). En Sentry, el error `AEROPASS-BACK-2`: mensaje `[redactado]`, sin cuerpo, única cabecera `User-Agent`, sin variables locales y sin query string. Las transacciones `/v1/passes/{credencial_id}` no llevan la URL real (ni UUID ni query), y los spans SQL solo tienen placeholders (`$1::VARCHAR`). |
+| §3 | ⚠️ Parcial | El SDK desplegado en `prod` envía datos: 5 transacciones `http.server` (404, sin ruta), `sdk.name=sentry.python.fastapi`, release `f49ddaaf9879`. **Falta** correr `e2e_flow` contra un deploy con `BIOMETRIC_PROVIDER=mock` y confirmar transacciones `/v1/*`, el log de auditoría, las métricas y que un error llegue en menos de 1 minuto. En `prod` todavía no hay tráfico `/v1/*` ni errores del backend. |
+| §4 | ✅ | `curl -i https://aeropass-lac.vercel.app/health` → `200`, `Cache-Control: no-store`, `{"estado":"ok"}`. El monitor de Uptime `10437854` registra chequeos cada minuto. El caso 503 no se probó en un deploy; lo cubre `test_health_contract.py`. |
+| §5 | ✅ en `simulated` | T047/T051: `seed_demo --contingencia` en `simulated`; W3/W4/W7/W8 coinciden con la herramienta (87,5 % y 36,4 %) y B3 se disparó. En `demo` se corre como preparación de la presentación (T057, al menos 1 h antes). |
+| §6 | ✅ en `simulated` | T051: `seed_demo --solo-error` → issue `AEROPASS-BACK-2`; B1 se disparó 26 s después. |
+| §7 | ⏳ Pendiente | Necesita un redeploy y acceso a los logs de Vercel. La idempotencia del registro de hooks la cubre `test_observability_setup.py`. |
