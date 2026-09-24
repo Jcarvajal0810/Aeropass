@@ -58,8 +58,9 @@ def create_app(container: Container | None = None) -> FastAPI:
 
 
 def _include_routers(app: FastAPI) -> None:
-    from aeropass.api.routers import biometrics, identity, internal, passes, wellknown
+    from aeropass.api.routers import biometrics, health, identity, internal, passes, wellknown
 
+    app.include_router(health.router)
     app.include_router(identity.router)
     app.include_router(biometrics.router)
     app.include_router(passes.router)

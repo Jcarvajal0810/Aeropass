@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 
 import pytest
 
@@ -11,6 +12,8 @@ from aeropass.adapters.resilience.circuit_breaker import (
     CircuitOpenError,
     InMemoryBreakerStateStore,
 )
+from aeropass.observability import hooks
+from aeropass.observability import telemetry_catalog as tc
 
 
 class Boom(Exception):
@@ -105,6 +108,62 @@ async def test_half_open_blocks_concurrent_trial(breaker):
         await cb.call(ok, timeout=1)
     release.set()
     assert await trial == "ok"
+
+
+# --- observability (spec 002, research §7, FR-008, FR-014) ----------------------------------
+@pytest.fixture
+def telemetry():
+    audits: list[tuple[str, dict]] = []
+    spans: list[str] = []
+
+    @contextlib.contextmanager
+    def span_hook(name: str):
+        spans.append(name)
+        yield
+
+    hooks.clear_hooks()
+    hooks.register_audit_hook(lambda event, data: audits.append((event, data)))
+    hooks.register_span_hook(span_hook)
+    yield audits, spans
+    hooks.clear_hooks()
+
+
+def _openings(audits: list[tuple[str, dict]]) -> list[dict]:
+    return [data for event, data in audits if event == tc.CIRCUIT_OPENED]
+
+
+async def test_opening_is_audited_with_its_dependency(breaker, telemetry):
+    cb, _, _ = breaker
+    audits, _ = telemetry
+
+    await _fail_n(cb, 4)
+    assert _openings(audits) == []  # a failure that does not open emits nothing
+
+    await _fail_n(cb, 1)
+    assert _openings(audits) == [{"dependencia": "test"}]
+
+
+async def test_reopening_from_half_open_is_audited_too(breaker, telemetry):
+    cb, clock, _ = breaker
+    audits, _ = telemetry
+    await _fail_n(cb, 5)
+    clock.advance(31)
+
+    await _fail_n(cb, 1)
+
+    assert _openings(audits) == [{"dependencia": "test"}, {"dependencia": "test"}]
+
+
+async def test_every_call_runs_inside_its_span_even_when_rejected(breaker, telemetry):
+    cb, _, _ = breaker
+    _, spans = telemetry
+
+    await cb.call(ok, timeout=1)
+    await _fail_n(cb, 5)
+    with pytest.raises(CircuitOpenError):
+        await cb.call(ok, timeout=1)
+
+    assert spans == ["circuit_breaker.test"] * 7
 
 
 async def test_timeouts_count_as_failures(breaker):

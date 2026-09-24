@@ -35,11 +35,13 @@ from aeropass.ports.auth import AuthenticatedUser, Authenticator
 from aeropass.ports.clock import Clock
 from aeropass.ports.event_publisher import EventPublisher
 from aeropass.ports.flight_catalog import FlightCatalog
+from aeropass.ports.health import HealthCheck
 from aeropass.ports.media_storage import MediaStorage
 from aeropass.ports.rate_limiter import RateLimiter
 from aeropass.ports.token_store import TokenStore
 from aeropass.services.biometric_verification_service import BiometricVerificationService
 from aeropass.services.credential_lifecycle_service import CredentialLifecycleService
+from aeropass.services.health_service import HealthService
 from aeropass.services.identity_service import IdentityService
 from aeropass.services.identity_verification_facade import IdentityVerificationFacade
 from aeropass.services.outbox_dispatcher import OutboxDispatcher
@@ -229,6 +231,17 @@ class Container:
         )
 
     @cached_property
+    def health_service(self) -> HealthService:
+        from aeropass.adapters.health.checks import DatabaseHealthCheck, RedisHealthCheck
+
+        checks: list[HealthCheck] = [DatabaseHealthCheck(self.session_factory)]
+        if not self.fake:  # fake mode has no real Redis to check
+            from aeropass.adapters.redis.client import get_redis
+
+            checks.append(RedisHealthCheck(get_redis()))
+        return HealthService(checks)
+
+    @cached_property
     def facade(self) -> IdentityVerificationFacade:
         return IdentityVerificationFacade(
             self.uow,
@@ -259,6 +272,10 @@ def get_registration_service(container: Container = Depends(get_container)) -> R
 
 def get_facade(container: Container = Depends(get_container)) -> IdentityVerificationFacade:
     return container.facade
+
+
+def get_health_service(container: Container = Depends(get_container)) -> HealthService:
+    return container.health_service
 
 
 def get_outbox_dispatcher(container: Container = Depends(get_container)) -> OutboxDispatcher:

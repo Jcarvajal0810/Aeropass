@@ -82,7 +82,10 @@ class MetricRule:
 
 
 # Each user story adds its rule here (tasks T030, T039, T041).
-METRIC_RULES: tuple[MetricRule, ...] = ()
+METRIC_RULES: tuple[MetricRule, ...] = (
+    # US6 — contingency rate per external dependency (KR A2.5).
+    MetricRule("aeropass.circuit_breaker.apertura", CIRCUIT_OPENED, frozenset({"dependencia"})),
+)
 
 
 def metric_attributes() -> Mapping[str, frozenset[str]]:

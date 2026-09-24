@@ -12,6 +12,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import Protocol, TypeVar
 
+from aeropass.observability.hooks import emit_audit, span
+from aeropass.observability.telemetry_catalog import CIRCUIT_OPENED
 from aeropass.ports.clock import Clock
 
 logger = logging.getLogger(__name__)
@@ -109,6 +111,12 @@ class CircuitBreaker:
 
     # The explicit per-call timeout is part of the breaker contract (constitution, Principle V).
     async def call(self, fn: Callable[[], Awaitable[T]], *, timeout: float) -> T:  # noqa: ASYNC109
+        # One span per call, rejections included: its status tells timeout, open circuit and
+        # code error apart (spec 002, research §7).
+        with span(f"circuit_breaker.{self.name}"):
+            return await self._call(fn, timeout)
+
+    async def _call(self, fn: Callable[[], Awaitable[T]], timeout: float) -> T:  # noqa: ASYNC109
         now = self._clock.now().timestamp()
         state = await self.state()
 
@@ -136,12 +144,20 @@ class CircuitBreaker:
     async def _record_failure(self, state: BreakerState, now: float) -> None:
         if state.status == HALF_OPEN:
             await self._save(BreakerState(status=OPEN, open_until=now + self._open_seconds))
+            self._opened()
             return
         if now - state.window_start > self._window_seconds:
             state = BreakerState(failures=1, window_start=now)
         else:
             state = replace(state, failures=state.failures + 1)
-        if state.failures >= self._failure_threshold:
+        opened = state.failures >= self._failure_threshold
+        if opened:
             state = BreakerState(status=OPEN, open_until=now + self._open_seconds)
             logger.warning("circuit breaker opened", extra={"breaker": self.name})
         await self._save(state)
+        if opened:
+            self._opened()
+
+    def _opened(self) -> None:
+        """Contingency signal per dependency (spec 002, FR-008, FR-014)."""
+        emit_audit(CIRCUIT_OPENED, dependencia=self.name)

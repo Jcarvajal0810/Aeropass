@@ -131,5 +131,7 @@ Fuera del alcance de este repo (checkpoint, lector, aerolínea, consola): F1, F2
 ## §15 Línea base del repositorio (2026-09-24)
 
 - Con Python 3.11 en un entorno aparte: **95 pruebas unitarias y de contrato pasan**. **68 pruebas de integración dan error en esta máquina** porque el Postgres embebido (`pgserver`) no arranca sobre el `.pgdata/` versionado. Se corren con `TEST_DATABASE_URL` (Postgres local o rama de Neon).
-- `.pgdata/` y varios `__pycache__/` están versionados en git; correr la suite los modifica. Es un problema aparte de esta feature.
+- **Actualización (fase 4)**: un Postgres embebido en un directorio limpio fuera del repo, usado como `TEST_DATABASE_URL`, hace correr la suite completa: **232 pruebas, 0 errores**.
+- Hallazgo al hacerlo: `migrations/env.py` llamaba a `fileConfig(...)` con `disable_existing_loggers=True` (el valor por defecto). Al correr las migraciones dentro del proceso de pruebas, se silenciaban todos los loggers `aeropass.*` ya creados, así que `test_no_pii_in_logs` podía pasar sin capturar nada. Se corrigió con `disable_existing_loggers=False`, sin efecto en producción, donde las migraciones corren como CLI aparte.
+- `.pgdata/` y varios `__pycache__/` están versionados en git, porque el `.gitignore` está en UTF-16 y git no lo lee; correr la suite con el `.pgdata/` del repo los modifica. Es un problema aparte de esta feature.
 - El Python por defecto de la máquina es 3.14, para el que `pgserver` no tiene wheels: hay que usar `uv run --python 3.11`.

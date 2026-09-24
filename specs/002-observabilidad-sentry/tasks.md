@@ -22,7 +22,7 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 - Código en `src/aeropass/`, pruebas en `tests/`.
 - Correr las pruebas con `uv run --python 3.11 pytest` (el 3.14 por defecto no tiene wheels de `pgserver`).
-- Las pruebas de integración necesitan `TEST_DATABASE_URL`; en esta máquina el Postgres embebido no arranca (research §15). Después de correr la suite, restaurar `.pgdata/` con `git checkout -- .pgdata` y borrar los `.pyc` nuevos: están versionados.
+- Las pruebas de integración necesitan `TEST_DATABASE_URL`. El Postgres embebido no arranca sobre el `.pgdata/` versionado, pero sí sobre un directorio limpio fuera del repo (`pgserver.get_server(<dir limpio>)`), que se usa como `TEST_DATABASE_URL` (research §15). Así la suite completa corre sin tocar `.pgdata/`. Si se usa el `.pgdata/` del repo, restaurarlo después con `git checkout -- .pgdata`.
 - Ninguna prueba usa red ni un DSN real: usan el transporte en memoria de T006.
 
 ---
@@ -133,29 +133,29 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Tests (primero)
 
-- [ ] T020 [P] [US6] Escribir `tests/contract/test_health_contract.py` según contracts/health-endpoint.md:
+- [X] T020 [P] [US6] Escribir `tests/contract/test_health_contract.py` según contracts/health-endpoint.md:
   - 200 `{"estado":"ok"}` con checks que terminan bien;
   - 503 `{"estado":"no_disponible"}` con un check que lanza y con uno que se cuelga (timeout corto inyectado);
   - `Cache-Control: no-store`;
   - el cuerpo nunca contiene el nombre del check ni el mensaje;
   - sin autenticación; fuera del esquema OpenAPI.
-- [ ] T021 [P] [US6] Escribir `tests/unit/test_health_service.py`: los checks corren en paralelo (dos checks de 0,2 s tardan menos de 0,4 s en total); el timeout acota el total; el reporte interno lista los checks fallidos.
-- [ ] T022 [P] [US6] Extender `tests/unit/test_circuit_breaker.py` con un hook de auditoría de prueba:
+- [X] T021 [P] [US6] Escribir `tests/unit/test_health_service.py`: los checks corren en paralelo (dos checks de 0,2 s tardan menos de 0,4 s en total); el timeout acota el total; el reporte interno lista los checks fallidos.
+- [X] T022 [P] [US6] Extender `tests/unit/test_circuit_breaker.py` con un hook de auditoría de prueba:
   - al llegar al umbral en `CLOSED` se emite `resilience.circuit_opened` con `dependencia=<nombre>`;
   - al fallar la prueba en `HALF_OPEN` se emite otra vez;
   - un fallo que no abre el circuito no emite nada;
   - cada `call` corre dentro de `span("circuit_breaker.<nombre>")`, también cuando se rechaza con `CircuitOpenError`.
-- [ ] T023 [P] [US6] Escribir `tests/integration/test_pass_latency_telemetry.py`: con el transporte en memoria, `POST /v1/passes` y `GET /v1/passes/{id}` producen transacciones con los nombres `/v1/passes` y `/v1/passes/{credencial_id}` (plantilla de la ruta, sin el método ni el UUID), y `GET /health` no produce transacción.
+- [X] T023 [P] [US6] Escribir `tests/integration/test_pass_latency_telemetry.py`: con el transporte en memoria, `POST /v1/passes` y `GET /v1/passes/{id}` producen transacciones con los nombres `/v1/passes` y `/v1/passes/{credencial_id}` (plantilla de la ruta, sin el método ni el UUID), y `GET /health` no produce transacción.
 
 ### Implementación
 
-- [ ] T024 [P] [US6] Crear el puerto `src/aeropass/ports/health.py`: `HealthCheck` (`Protocol` con `name: str` y `async check() -> None`) y `HealthReport` (`ok: bool`, `fallidos: tuple[str, ...]`), según data-model.md §5.
-- [ ] T025 [P] [US6] Crear `src/aeropass/adapters/health/checks.py` (y su `__init__.py`): `DatabaseHealthCheck`, que corre `SELECT 1` con el `async_sessionmaker`, y `RedisHealthCheck`, que corre `PING` con el cliente de `get_redis()`.
-- [ ] T026 [US6] Crear `src/aeropass/services/health_service.py`: `HealthService(checks, timeout=3.0)` corre los checks con `asyncio.gather` y `asyncio.wait_for`, y escribe los fallidos en el logger `aeropass.health` a nivel `WARNING`, sin detalles de conexión. Hace pasar T021.
-- [ ] T027 [US6] Agregar `health_service` al `Container` en `src/aeropass/api/deps.py`, con `DatabaseHealthCheck` siempre y `RedisHealthCheck` solo si no es modo `fake`, más la dependencia `get_health_service`.
-- [ ] T028 [US6] Crear `src/aeropass/api/routers/health.py` (`GET /health`, `include_in_schema=False`, 200/503 y `Cache-Control: no-store`) e incluirlo en `_include_routers` de `src/aeropass/main.py`. Hace pasar T020.
-- [ ] T029 [US6] Modificar `src/aeropass/adapters/resilience/circuit_breaker.py`: envolver `call` en `hooks.span(f"circuit_breaker.{self.name}")` y emitir `emit_audit("resilience.circuit_opened", dependencia=self.name)` en las dos aperturas de `_record_failure`, conservando el `logger.warning`. Hace pasar T022.
-- [ ] T030 [US6] Agregar al catálogo (`src/aeropass/observability/telemetry_catalog.py`) la regla de métrica `aeropass.circuit_breaker.apertura` (evento `resilience.circuit_opened`, atributo `aeropass.dependencia`) y verificar T008 y T011.
+- [X] T024 [P] [US6] Crear el puerto `src/aeropass/ports/health.py`: `HealthCheck` (`Protocol` con `name: str` y `async check() -> None`) y `HealthReport` (`ok: bool`, `fallidos: tuple[str, ...]`), según data-model.md §5.
+- [X] T025 [P] [US6] Crear `src/aeropass/adapters/health/checks.py` (y su `__init__.py`): `DatabaseHealthCheck`, que corre `SELECT 1` con el `async_sessionmaker`, y `RedisHealthCheck`, que corre `PING` con el cliente de `get_redis()`.
+- [X] T026 [US6] Crear `src/aeropass/services/health_service.py`: `HealthService(checks, timeout=3.0)` corre los checks con `asyncio.gather` y `asyncio.wait_for`, y escribe los fallidos en el logger `aeropass.health` a nivel `WARNING`, sin detalles de conexión. Hace pasar T021.
+- [X] T027 [US6] Agregar `health_service` al `Container` en `src/aeropass/api/deps.py`, con `DatabaseHealthCheck` siempre y `RedisHealthCheck` solo si no es modo `fake`, más la dependencia `get_health_service`.
+- [X] T028 [US6] Crear `src/aeropass/api/routers/health.py` (`GET /health`, `include_in_schema=False`, 200/503 y `Cache-Control: no-store`) e incluirlo en `_include_routers` de `src/aeropass/main.py`. Hace pasar T020.
+- [X] T029 [US6] Modificar `src/aeropass/adapters/resilience/circuit_breaker.py`: envolver `call` en `hooks.span(f"circuit_breaker.{self.name}")` y emitir `emit_audit("resilience.circuit_opened", dependencia=self.name)` en las dos aperturas de `_record_failure`, conservando el `logger.warning`. Hace pasar T022.
+- [X] T030 [US6] Agregar al catálogo (`src/aeropass/observability/telemetry_catalog.py`) la regla de métrica `aeropass.circuit_breaker.apertura` (evento `resilience.circuit_opened`, atributo `aeropass.dependencia`) y verificar T008 y T011.
 
 **Checkpoint**: salud, latencia y contingencia medibles.
 
