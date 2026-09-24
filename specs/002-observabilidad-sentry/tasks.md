@@ -292,9 +292,9 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ## Phase 11: Polish & Cross-Cutting
 
-- [ ] T052 [P] Extender `tests/unit/test_no_pii_in_logs.py` (o crear `tests/integration/test_no_pii_in_sentry.py`) para que el flujo con `spoof`, `timeout`, outbox caído y `ok` se ejecute con el transporte en memoria. Ningún envelope (error, transacción, log, métrica, breadcrumb) puede contener el número o nombre del documento, `MOCK:`, bytes de imagen, el token del pase, la clave de firma ni `authorization` (SC-003).
-- [ ] T053 [P] Actualizar `README.md`: variables de Sentry, dónde vive la configuración (`adapters/observability/`), la regla "solo hooks en el negocio" (constitución 1.1.0, Principio VI), el enlace a los contratos y quitar "Full observability" de la lista de pendientes.
-- [ ] T054 Correr `uv run --python 3.11 ruff check .`, `uv run --python 3.11 mypy` y la suite completa (`TEST_DATABASE_URL` para integración). Corregir hasta dejarlo en verde y restaurar `.pgdata/` y los `.pyc` versionados.
+- [X] T052 [P] Extender `tests/unit/test_no_pii_in_logs.py` (o crear `tests/integration/test_no_pii_in_sentry.py`) para que el flujo con `spoof`, `timeout`, outbox caído y `ok` se ejecute con el transporte en memoria. Ningún envelope (error, transacción, log, métrica, breadcrumb) puede contener el número o nombre del documento, `MOCK:`, bytes de imagen, el token del pase, la clave de firma ni `authorization` (SC-003).
+- [X] T053 [P] Actualizar `README.md`: variables de Sentry, dónde vive la configuración (`adapters/observability/`), la regla "solo hooks en el negocio" (constitución 1.1.0, Principio VI), el enlace a los contratos y quitar "Full observability" de la lista de pendientes.
+- [X] T054 Correr `uv run --python 3.11 ruff check .`, `uv run --python 3.11 mypy` y la suite completa (`TEST_DATABASE_URL` para integración). Corregir hasta dejarlo en verde y restaurar `.pgdata/` y los `.pyc` versionados.
 - [ ] T055 Medir el impacto del arranque en frío (SC-004): tiempo de importación de `aeropass.main` con y sin `SENTRY_DSN` (`python -X importtime`) y latencia de `GET /health` en el deploy. Anotar los resultados en `specs/002-observabilidad-sentry/research.md` §3.
 - [ ] T056 Recorrer `specs/002-observabilidad-sentry/quickstart.md` §1–§7 y marcar lo verificado. §3, §4 y §7 requieren un deploy (T046).
 - [ ] T057 Ensayo de la presentación de 15 minutos con los datos de `seed_demo` en `demo` (Historia 9): cronometrar y ajustar el guion del README.

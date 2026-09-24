@@ -74,7 +74,10 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy
 ```
 
 Integration tests use `TEST_DATABASE_URL` if it is set. Otherwise they start an embedded Postgres
-with `pgserver` (dev dependency; data in `.pgdata/`).
+with `pgserver` (dev dependency; data in `.pgdata/`). `pgserver` ships wheels only up to Python
+3.12: on a newer default Python, run the suite with `uv run --python 3.11 pytest`. Tests never use
+the network or a real Sentry DSN; they capture telemetry with an in-memory transport
+(`tests/support/sentry_capture.py`).
 
 ## Deploying to Vercel
 
@@ -104,6 +107,35 @@ Checkpoints fetch the new key from `/.well-known/jwks.json`, which is cached for
 Spec: [`specs/002-observabilidad-sentry/`](specs/002-observabilidad-sentry/spec.md). Errors,
 traces, audit logs and business metrics go to the Sentry project `aeropass-back`. Without
 `SENTRY_DSN` nothing is sent and the backend behaves exactly the same.
+
+| Variable | Meaning |
+|---|---|
+| `SENTRY_DSN` | Project key of `aeropass-back`; empty turns observability off (local, CI, tests) |
+| `SENTRY_ENVIRONMENT` | `prod`, `demo`, `dev` or `simulated`; the dashboard and alerts filter on it |
+| `SENTRY_TRACES_SAMPLE_RATE` | Share of traced requests in [0, 1]: `0.2` in prod, `1.0` elsewhere. Errors, audit logs and metrics are always sent in full; `/health` is never traced |
+| `VERCEL_GIT_COMMIT_SHA` | Set by Vercel; used as the Sentry release |
+
+How it is wired (constitution 1.1.0, Principle VI):
+
+- Business code only uses the hooks in
+  [`observability/hooks.py`](src/aeropass/observability/hooks.py): `@traced`, `span()`,
+  `@audited(describe=...)` and `emit_audit()`. Only
+  [`adapters/observability/`](src/aeropass/adapters/observability) imports `sentry_sdk`.
+- Event, metric and attribute names live in
+  [`observability/telemetry_catalog.py`](src/aeropass/observability/telemetry_catalog.py). A new
+  business metric on an audited step is a new `MetricRule` there. Anything not in the catalog never
+  reaches Sentry, which
+  [`test_telemetry_allowlist.py`](tests/contract/test_telemetry_allowlist.py) enforces.
+- Every event, trace, breadcrumb, log and metric passes through `SentryPrivacyFilter`. No request
+  bodies, local variables, query strings, auth headers or third-party exception messages leave the
+  process ([contract](specs/002-observabilidad-sentry/contracts/privacy-filter.md)).
+- On Vercel, [`api/index.py`](api/index.py) wraps the app in `FlushTelemetryMiddleware`, which
+  sends queued telemetry after each response through `wait_until`. The passenger never waits for
+  Sentry.
+- `GET /health` (database + Redis, no details in the body) is polled every minute by a Sentry
+  uptime monitor.
+- The dashboard and alerts are configured by hand in Sentry. Their definitions and IDs are in
+  [`contracts/dashboard-and-alerts.md`](specs/002-observabilidad-sentry/contracts/dashboard-and-alerts.md).
 
 ### Preparing the 15-minute demo
 
@@ -138,10 +170,11 @@ These parts are handled by other teams:
 - Checkpoint validation (`validate`).
 - Human agent console.
 - Airline or GDS integration (`flights`).
-- Full observability.
+- Fault injection (annex C experiments). The observability signals that verify each hypothesis
+  touching this backend are already in place (spec 002, research §13).
 
 This repo provides the extension points those parts need: `CredentialLifecycleService.consume`
-(enforces RN-06), the JWKS, the event schemas, the `@traced`/`@audited` decorators and
+(enforces RN-06), the JWKS, the event schemas, the `@traced`/`@audited` hooks and
 `FlightCatalog`.
 
 ## Endpoints
