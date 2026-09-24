@@ -13,7 +13,9 @@ from typing import Any
 
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.httpx import HttpxIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 from sentry_sdk.transport import Transport
 from sentry_sdk.utils import capture_internal_exceptions
@@ -64,7 +66,11 @@ def configure_observability(settings: Settings, *, transport: Transport | None =
         "before_breadcrumb": privacy.before_breadcrumb,
         "before_send_log": privacy.before_send_log,
         "before_send_metric": privacy.before_send_metric,
+        # Auto-enabling probes ~50 libraries (~0.6 s) on every cold start; list only ours.
+        "auto_enabling_integrations": False,
         "integrations": [
+            SqlalchemyIntegration(),
+            HttpxIntegration(),
             StarletteIntegration(
                 transaction_style="url", failed_request_status_codes=_SERVER_ERRORS
             ),

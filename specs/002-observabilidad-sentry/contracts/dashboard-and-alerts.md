@@ -4,9 +4,19 @@
 
 Se configuran **a mano** en la UI de Sentry (organización Aeropass, proyecto `aeropass-back`). Este archivo sirve para recrearlos. Si alguien cambia un umbral en la UI, la UI manda y este archivo se actualiza en el siguiente PR.
 
-## Estado en Sentry
+## Estado en Sentry (2026-09-24)
 
-Pendiente: se completa con los IDs al configurarlo, igual que en la app.
+- **Proyecto `aeropass-back`** (id `4512133546442752`): "Prevent Storing of IP Addresses" activado. Data Scrubbing y sus reglas por defecto activos.
+- **Dashboard** https://aeropass.sentry.io/dashboard/10191181/ con 10 de 11 widgets. Falta W5, que depende del monitor de Uptime.
+  - W3, W4, W7 y W8 (métricas) usan `categorical_bar` o `line`: el dataset de métricas no admite tablas.
+  - Para ver solo el backend, abrir el dashboard con `?project=4512133546442752`.
+- **B1**: alerta `6062331` sobre el detector "Issue Stream" (`10417832`). Cada evento con `handled:no` envía un correo a `#aeropass-team`, máximo uno cada 5 min, en todos los entornos.
+- **B2**: monitor `10436324` con la ecuación `sum_if(aeropass.estado contiene VERIFICADO) / sum(total)` sobre `aeropass.pasajero.estado_final`. Condición < 0,85 en 1 hora, solo `prod`, asignado a `#aeropass-team`. Alerta `6062356`: correo, máximo uno por hora.
+  - La UI solo ofrece entornos que ya tienen datos. Como `prod` todavía no existe, el monitor se creó sin entorno y se le fijó `prod` por API (`PUT` al detector, `queryType: 1`).
+- **B3**: monitor `10436299` con `sum(aeropass.circuit_breaker.apertura)` > 0 en 10 min, todos los entornos. Alerta `6062338`: correo, máximo uno cada 10 min.
+- **B4 y monitor de Uptime**: pendientes del despliegue de esta rama en Vercel (T046, T048), que requiere acceso a Vercel.
+- **Datos de validación** en el entorno `simulated`, generados con `seed_demo --contingencia` contra un Postgres local. Resultado: 14 pasajeros verificados y 2 en revisión manual (autoservicio 87,5 %); intentos 14 exitosos, 8 fallidos y 7 no concluyentes (auto rechazo 36,4 %); 1 apertura de `biometric`; latencia p95 de pase 114 ms en la emisión y 17 ms en la consulta.
+- **Verificación en vivo (T051)**: `seed_demo --solo-error` produjo el issue `AEROPASS-BACK-2` ("RuntimeError: [redactado]") y B1 se disparó 26 s después. B3 también se disparó con la apertura de `biometric`.
 
 ## Monitor de Uptime
 

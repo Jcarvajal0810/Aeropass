@@ -27,6 +27,13 @@ Cada sección sigue el formato Decisión / Razón / Alternativas. Ninguna secci�
 - **Razón**: el SDK envía en un hilo de fondo; en serverless, el proceso puede congelarse justo después de responder y perder lo que quedó en cola. `wait_until` mantiene viva la invocación **después** de enviar la respuesta, así que el pasajero no espera. El tiempo extra queda acotado por `maxDuration` (30 s).
 - **Alternativas**: `sentry_sdk.flush()` síncrono al final de cada request. Descartado: suma hasta 2 s a la respuesta. Confiar solo en el hilo de fondo: se perderían eventos en instancias que se congelan (SC-001 exige verlos en menos de 1 minuto). **Verificación obligatoria**: quickstart §3 confirma en un deploy real que un error aparece en Sentry.
 
+### Costo en el arranque en frío (T055, medición local 2026-09-24)
+
+- **Hallazgo**: con la configuración por defecto, `sentry_sdk.init` revisa unas 50 integraciones automáticas importando cada librería candidata. Medido en proceso, con el release definido como en Vercel, **tomaba 436 ms en cada arranque en frío**.
+- **Decisión**: `auto_enabling_integrations=False` y la lista explícita de lo que se usa: Starlette, FastAPI, logging, SQLAlchemy y httpx. **La inicialización baja a 45 ms.** Una prueba en `test_observability_setup.py` verifica que las cinco integraciones sigan instaladas.
+- Sin `VERCEL_GIT_COMMIT_SHA`, el SDK busca el release con `git rev-parse`, que suma ~60 ms. Solo pasa en local.
+- **Pendiente** en el despliegue: la latencia real de `/health` en frío y en caliente (T055).
+
 ## §4 Privacidad (FR-006, SC-003)
 
 - **Decisión**: dos capas.

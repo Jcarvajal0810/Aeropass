@@ -63,6 +63,16 @@ def test_with_dsn_the_sdk_runs_with_the_privacy_options():
         assert isinstance(options[hook].__self__, SentryPrivacyFilter), hook
 
 
+def test_only_the_needed_integrations_load_to_keep_cold_starts_short():
+    """Auto-enabling probes ~50 libraries on every cold start (spec 002, SC-004, T055)."""
+    configure_observability(sentry_settings(), transport=CapturingTransport())
+
+    options = sentry_sdk.get_client().options
+    assert options["auto_enabling_integrations"] is False
+    installed = set(sentry_sdk.get_client().integrations)
+    assert {"starlette", "fastapi", "logging", "sqlalchemy", "httpx"} <= installed
+
+
 def test_initialisation_is_idempotent_and_hooks_register_once():
     settings = sentry_settings()
     configure_observability(settings, transport=CapturingTransport())
