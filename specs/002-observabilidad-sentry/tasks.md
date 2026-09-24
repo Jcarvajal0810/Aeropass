@@ -111,15 +111,15 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 ### Tests (primero)
 
-- [ ] T017 [P] [US1] Escribir `tests/integration/test_unhandled_errors.py`. Con `create_app` y una ruta de prueba agregada solo en la prueba, que recibe un JSON con `numero_documento` y lanza `RuntimeError`:
+- [X] T017 [P] [US1] Escribir `tests/integration/test_unhandled_errors.py`. Con `create_app` y una ruta de prueba agregada solo en la prueba, que recibe un JSON con `numero_documento` y lanza `RuntimeError`:
   - se captura un evento con `transaction` = plantilla de la ruta, `request.method`, pila completa, `error.unhandled`, sin `request.data` ni `vars` en los frames;
   - la respuesta HTTP es 500, igual que con el mismo test sin DSN;
   - un `DomainError` (p. ej. `DatosInvalidos`) y un `RequestValidationError` **no** generan eventos.
-- [ ] T018 [P] [US1] Agregar a `tests/integration/test_unhandled_errors.py` un caso de logging: un `logger.exception` de un logger `aeropass.*` (como el del despachador del outbox) genera un evento de error, y un `logger.info` de `httpx` no genera ni evento ni log.
+- [X] T018 [P] [US1] Agregar a `tests/integration/test_unhandled_errors.py` un caso de logging: un `logger.exception` de un logger `aeropass.*` (como el del despachador del outbox) genera un evento de error, y un `logger.info` de `httpx` no genera ni evento ni log.
 
 ### Implementación
 
-- [ ] T019 [US1] Ajustar la configuración de la integración FastAPI en `src/aeropass/adapters/observability/sentry_setup.py` (`failed_request_status_codes` de 500 a 599 y, si hace falta, `LoggingIntegration(event_level=logging.ERROR)`) hasta que T017 y T018 pasen, sin tocar los handlers de `main.py`.
+- [X] T019 [US1] Ajustar la configuración de la integración FastAPI en `src/aeropass/adapters/observability/sentry_setup.py` (`failed_request_status_codes` de 500 a 599 y, si hace falta, `LoggingIntegration(event_level=logging.ERROR)`) hasta que T017 y T018 pasen, sin tocar los handlers de `main.py`. *Resultado: no hizo falta ningún cambio, porque la configuración de T015 ya los cubría. Una prueba de mutación (variables locales, cuerpo de request y `before_send` desactivados) hace fallar T017, así que las pruebas sí protegen.*
 
 **Checkpoint**: MVP. Con DSN, las fallas de código llegan a Sentry sin datos sensibles.
 
