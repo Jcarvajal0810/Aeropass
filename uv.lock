@@ -22,6 +22,7 @@ dependencies = [
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
     { name = "qstash" },
+    { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "upstash-ratelimit" },
     { name = "upstash-redis" },
@@ -53,6 +54,7 @@ requires-dist = [
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "qstash", specifier = ">=2.0" },
+    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.70,<3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30" },
     { name = "upstash-ratelimit", specifier = ">=1.1" },
     { name = "upstash-redis", specifier = ">=1.1" },
@@ -1547,6 +1549,24 @@ wheels = [
 ]
 
 [[package]]
+name = "sentry-sdk"
+version = "2.70.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/52/0a/e37553f3106d0f7f0d4b8ad2c7b92410d131929786ffd116833d3b8164df/sentry_sdk-2.70.0.tar.gz", hash = "sha256:27e4b512f47be93136645dbe8f02d430473ee73a389ce430b2b7104baa66cf75", size = 1047234, upload-time = "2026-09-22T09:40:11.721Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/ff/b1e56f009bfb9b8023910b533d5ebf4ec5650da49891f2b8c7f3d4815401/sentry_sdk-2.70.0-py3-none-any.whl", hash = "sha256:89600e8bb5fc5239cad5c4434217f453204f2207ad29399ea58947460b37a62e", size = 531752, upload-time = "2026-09-22T09:40:10.063Z" },
+]
+
+[package.optional-dependencies]
+fastapi = [
+    { name = "fastapi" },
+]
+
+[[package]]
 name = "sqlalchemy"
 version = "2.0.54"
 source = { registry = "https://pypi.org/simple" }
@@ -1664,6 +1684,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6d/63/98fffe42262376f4b39d371d9b583b33b13c08f662bda05c627827d2c290/upstash_redis-1.8.0.tar.gz", hash = "sha256:5fcd172802f517473b711de2fd1d2d2587c13c816cd2c570ad66fceb4f77e695", size = 47555, upload-time = "2026-08-26T09:50:41.96Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/05/04/a350e6b9b910c6006826dd63deb45be30fed85b826351588df27671bd92b/upstash_redis-1.8.0-py3-none-any.whl", hash = "sha256:e08f18d9a955b2b224ab8d1611a9782bc21054a83afb3b88df36809ff87096fa", size = 49959, upload-time = "2026-08-26T09:50:40.809Z" },
+]
+
+[[package]]
+name = "urllib3"
+version = "2.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
 ]
 
 [[package]]

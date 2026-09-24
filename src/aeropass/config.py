@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     vision_provider_url: str = ""
     vision_provider_api_key: str = ""
 
+    # Sentry (spec 002). An empty DSN turns observability off.
+    sentry_dsn: str = ""
+    sentry_environment: str = "dev"
+    sentry_traces_sample_rate: float = Field(default=1.0, ge=0, le=1)
+    # Injected by Vercel on every deployment; used as the Sentry release.
+    vercel_git_commit_sha: str = ""
+
     @field_validator("qr_ttl_seconds")
     @classmethod
     def _ttl_in_range(cls, v: int) -> int:

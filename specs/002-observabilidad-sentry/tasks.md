@@ -31,9 +31,9 @@ description: "Lista de tareas de la feature 002: observabilidad con Sentry (back
 
 **Propósito**: dependencia, configuración y variables.
 
-- [ ] T001 Agregar `sentry-sdk[fastapi]>=2.70,<3` a `dependencies` en `pyproject.toml` y regenerar `uv.lock` con `uv lock --python 3.11`
-- [ ] T002 [P] Agregar a `src/aeropass/config.py` los campos `sentry_dsn: str = ""`, `sentry_environment: str = "dev"`, `sentry_traces_sample_rate: float = 1.0` (validador: rango [0, 1]) y `vercel_git_commit_sha: str = ""` (la variable que inyecta Vercel), según data-model.md §6
-- [ ] T003 [P] Agregar a `.env.example` una sección "Sentry" con `SENTRY_DSN=`, `SENTRY_ENVIRONMENT=dev` (valores: `prod`, `demo`, `dev`, `simulated`) y `SENTRY_TRACES_SAMPLE_RATE=1.0` (0.2 en prod), con comentarios en el estilo del archivo
+- [X] T001 Agregar `sentry-sdk[fastapi]>=2.70,<3` a `dependencies` en `pyproject.toml` y regenerar `uv.lock` con `uv lock --python 3.11`
+- [X] T002 [P] Agregar a `src/aeropass/config.py` los campos `sentry_dsn: str = ""`, `sentry_environment: str = "dev"`, `sentry_traces_sample_rate: float = 1.0` (validador: rango [0, 1]) y `vercel_git_commit_sha: str = ""` (la variable que inyecta Vercel), según data-model.md §6
+- [X] T003 [P] Agregar a `.env.example` una sección "Sentry" con `SENTRY_DSN=`, `SENTRY_ENVIRONMENT=dev` (valores: `prod`, `demo`, `dev`, `simulated`) y `SENTRY_TRACES_SAMPLE_RATE=1.0` (0.2 en prod), con comentarios en el estilo del archivo
 
 ---
 
