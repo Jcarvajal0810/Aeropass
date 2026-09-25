@@ -11,7 +11,8 @@ Se configuran **a mano** en la UI de Sentry (organización Aeropass, proyecto `a
   - W3, W4, W7 y W8 (métricas) usan `categorical_bar` o `line`: el dataset de métricas no admite tablas.
   - Para ver solo el backend, abrir el dashboard con `?project=4512133546442752`.
 - **B1**: alerta `6062331` sobre el detector "Issue Stream" (`10417832`). Cada evento con `handled:no` envía un correo a `#aeropass-team`, máximo uno cada 5 min, en todos los entornos.
-- **B2**: monitor `10436324` con la ecuación `sum_if(aeropass.estado contiene VERIFICADO) / sum(total)` sobre `aeropass.pasajero.estado_final`. Condición < 0,85 en 1 hora, solo `prod`, asignado a `#aeropass-team`. Alerta `6062356`: correo, máximo uno por hora.
+- **B2**: monitor `10436324` con la ecuación `1 - A / B` sobre `aeropass.pasajero.estado_final` (A: `sum` con `aeropass.estado contains REQUIERE_REVISION_MANUAL`; B: `sum` total). Condición < 0,85 en 1 hora, solo `prod`, asignado a `#aeropass-team`. Alerta `6062356`: correo, máximo uno por hora.
+  - **Cambio (2026-09-24)**: la ecuación original, `VERIFICADO / total`, daba 0 en una hora sin pasajeros, porque Sentry evalúa 0/0 como 0. Así se abrió la falsa alarma `AEROPASS-BACK-3` en `prod` sin datos, y no se cerraba nunca. La fórmula nueva da el mismo valor con datos, porque `estado_final` solo toma `VERIFICADO` o `REQUIERE_REVISION_MANUAL`, y sin datos da 1, así que no dispara.
   - La UI solo ofrece entornos que ya tienen datos. Como `prod` todavía no existe, el monitor se creó sin entorno y se le fijó `prod` por API (`PUT` al detector, `queryType: 1`).
 - **B3**: monitor `10436299` con `sum(aeropass.circuit_breaker.apertura)` > 0 en 10 min, todos los entornos. Alerta `6062338`: correo, máximo uno cada 10 min.
 - **Monitor de Uptime**: `10437854`. **B4**: alerta `6063447`. **W5**: widget de texto. Detalle en §Estado T048.
@@ -66,7 +67,7 @@ Cuando se ejecuten los experimentos, que siguen diferidos, estos widgets son los
 | # | Regla | Tipo / condición | Periodo | Entornos | Frecuencia máx. |
 |---|---|---|---|---|---|
 | B1 | Excepción no controlada | Alerta sobre issues: cada evento con `error.unhandled:true` | Inmediata | Todos | 1 correo cada 5 min |
-| B2 | Autoservicio bajo | Monitor de Application Metrics: `VERIFICADO / total < 0,85` (ecuación A/B) | 1 hora | Solo `prod` | 1 por hora |
+| B2 | Autoservicio bajo | Monitor de Application Metrics: `1 - REQUIERE_REVISION_MANUAL / total < 0,85` (equivale a `VERIFICADO / total` y no dispara sin datos) | 1 hora | Solo `prod` | 1 por hora |
 | B3 | Contingencia: apertura de circuit breaker | Monitor de Application Metrics: `sum(aeropass.circuit_breaker.apertura) ≥ 1` | 10 min | Todos | 1 cada 10 min |
 | B4 | Backend no disponible | Monitor de Uptime (3 fallos seguidos) | ~3 min | `prod` | Por incidente |
 
