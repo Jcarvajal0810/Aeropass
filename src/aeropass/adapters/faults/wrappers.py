@@ -18,6 +18,7 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
+import httpx
 from sqlalchemy.exc import OperationalError
 
 from aeropass.adapters.faults.context import (
@@ -78,6 +79,40 @@ class FaultInjectingBiometricProvider:
             plan = current()
             await asyncio.sleep((plan.slow_ms if plan else 0) / 1000)
         return await self._inner.evaluate(selfie, referencia)
+
+
+class FaultInjectingTransport(httpx.AsyncBaseTransport):
+    """Provider faults as **real HTTP answers**, for the providers that call out over HTTP
+    (MX Face, the generic vision provider).
+
+    The fault is answered at the transport, under the httpx client, so Sentry's httpx integration
+    records a real ``http.client`` span with the provider's host and the 503 or 429 status (widget
+    W10), and the adapter turns that answer into ``ProviderUnavailable`` exactly as it would a
+    real one. The mock provider makes no HTTP call, so it keeps ``FaultInjectingBiometricProvider``.
+    """
+
+    def __init__(self, inner: httpx.AsyncBaseTransport | None = None) -> None:
+        self._inner = inner or httpx.AsyncHTTPTransport()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if trip(MXFACE_DOWN):
+            return httpx.Response(503, request=request, json={"fault": MXFACE_DOWN})
+        if trip(MXFACE_QUOTA):
+            return httpx.Response(429, request=request, json={"fault": MXFACE_QUOTA})
+        if trip(MXFACE_SLOW):
+            plan = current()
+            await asyncio.sleep((plan.slow_ms if plan else 0) / 1000)
+        return await self._inner.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._inner.aclose()
+
+
+def provider_http_client(fault_injection: bool) -> httpx.AsyncClient:
+    """The httpx client of an HTTP biometric provider: with the fault transport when enabled."""
+    if fault_injection:
+        return httpx.AsyncClient(transport=FaultInjectingTransport())
+    return httpx.AsyncClient()
 
 
 class FaultInjectingEventPublisher:

@@ -17,7 +17,7 @@ Cada evento de auditoría registrado produce **un** log `info` con cuerpo `aerop
 | `aeropass.motivo` | según evento | enum `MotivoFallo` |
 | `aeropass.estado` | según evento | `VERIFICADO` \| `REQUIERE_REVISION_MANUAL` |
 | `aeropass.dependencia` | según evento | nombre del circuit breaker |
-| `aeropass.fault` | según evento | nombre del fallo inyectado (spec 003): `blob_down`, `mxface_down`, `mxface_slow`, `mxface_quota`, `db_down`, `redis_down`, `signing_down`, `qstash_down` |
+| `aeropass.fault` | según evento | nombre del fallo inyectado (spec 003): `blob_down`, `mxface_down`, `mxface_slow`, `mxface_quota`, `db_down`, `redis_down`, `signing_down`, `qstash_down`, `slow` |
 
 | Evento | Emisor | Log | Atributos extra | Métricas |
 |---|---|---|---|---|

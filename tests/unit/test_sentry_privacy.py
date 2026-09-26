@@ -269,3 +269,22 @@ def test_catalog_metric_keeps_only_its_attributes(f, monkeypatch):
     attributes = f.before_send_metric(metric, {})["attributes"]
 
     assert attributes == {"aeropass.estado": "VERIFICADO", "sentry.environment": "test"}
+
+
+def test_outgoing_http_spans_name_their_host_for_w10(f):
+    # sentry-sdk's httpx integration records the URL but not server.address (spec 003).
+    event = {
+        "spans": [
+            {
+                "op": "http.client",
+                "data": {"url": "https://faceapi.mxface.ai/api/v3/face/verify?k=1"},
+            },
+            {"op": "http.client", "data": {"url": "https://x.io/a", "server.address": "kept.io"}},
+            {"op": "aeropass.step", "data": {}},
+        ]
+    }
+    spans = f.before_send_transaction(event, {})["spans"]
+    assert spans[0]["data"]["server.address"] == "faceapi.mxface.ai"
+    assert spans[0]["data"]["url"] == "https://faceapi.mxface.ai/api/v3/face/verify"
+    assert spans[1]["data"]["server.address"] == "kept.io"
+    assert "server.address" not in spans[2]["data"]
