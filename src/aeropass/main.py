@@ -44,6 +44,14 @@ def create_app(container: Container | None = None) -> FastAPI:
         expose_headers=["Retry-After"],
     )
 
+    if container.settings.fault_injection_enabled:
+        # Spec 003: never in production (Settings refuses the flag there).
+        from aeropass.api.fault_injection import FaultInjectionMiddleware
+
+        app.add_middleware(
+            FaultInjectionMiddleware, secret=container.settings.fault_injection_secret
+        )
+
     @app.exception_handler(DomainError)
     async def _domain_error(_: Request, exc: DomainError) -> JSONResponse:
         return _error_response(exc)

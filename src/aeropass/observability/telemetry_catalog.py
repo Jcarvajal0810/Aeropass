@@ -17,6 +17,8 @@ CREDENTIAL_ISSUE = "credential.issue"
 CREDENTIAL_CONSUME = "credential.consume"
 AUTH_AUTHENTICATE = "auth.authenticate"
 CIRCUIT_OPENED = "resilience.circuit_opened"
+# Spec 003: a fault injected on purpose (header X-AeroPass-Fault), never in production.
+FAULT_INJECTED = "fault.injected"
 
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
@@ -33,6 +35,7 @@ ATTRIBUTE_NAMES: Mapping[str, str] = {
     "motivo": "aeropass.motivo",
     "estado": "aeropass.estado",
     "dependencia": "aeropass.dependencia",
+    "fault": "aeropass.fault",
 }
 
 # Keys every audit record may carry (set by ``@audited``).
@@ -60,6 +63,7 @@ AUDIT_EVENTS: Mapping[str, AuditEvent] = {
         # One per request: the ok record would only be noise and cost.
         AuditEvent(AUTH_AUTHENTICATE, errors_only=True),
         AuditEvent(CIRCUIT_OPENED, level="warning", keys=frozenset({"dependencia"})),
+        AuditEvent(FAULT_INJECTED, level="warning", keys=frozenset({"fault"})),
     )
 }
 

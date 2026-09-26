@@ -9,7 +9,7 @@ Tests may assign any attribute directly to override it.
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -65,6 +65,36 @@ class Container:
     def fake(self) -> bool:
         return self.settings.aeropass_adapters == "fake"
 
+    @property
+    def faults(self) -> bool:
+        """Spec 003: fault wrappers exist only with FAULT_INJECTION_ENABLED (never production)."""
+        return self.settings.fault_injection_enabled
+
+    def _fault_proxy(self, inner: Any, fault: str, error: Any) -> Any:
+        if not self.faults:
+            return inner
+        from aeropass.adapters.faults.wrappers import FaultProxy
+
+        return FaultProxy(inner, fault, error)
+
+    @cached_property
+    def redis(self) -> Any:
+        """The one Upstash client (real mode), so ``redis_down`` reaches every Redis user."""
+        from aeropass.adapters.faults.context import REDIS_DOWN
+        from aeropass.adapters.faults.wrappers import redis_error
+        from aeropass.adapters.redis.client import get_redis
+
+        return self._fault_proxy(get_redis(), REDIS_DOWN, redis_error)
+
+    def _sessions(self) -> Any:
+        """``session_factory`` behind the ``db_down`` fault. Read at use time, so a test that
+        replaces ``session_factory`` keeps working."""
+        if not self.faults:
+            return self.session_factory
+        from aeropass.adapters.faults.wrappers import FaultInjectingSessionFactory
+
+        return FaultInjectingSessionFactory(self.session_factory)
+
     # --- infrastructure -----------------------------------------------------------------
     @cached_property
     def clock(self) -> Clock:
@@ -87,30 +117,49 @@ class Container:
         return get_session_factory()
 
     def uow(self) -> SqlAlchemyUnitOfWork:
-        return SqlAlchemyUnitOfWork(self.session_factory)
+        return SqlAlchemyUnitOfWork(self._sessions())
 
     @cached_property
     def breaker_store(self) -> BreakerStateStore:
         if self.fake:
-            return InMemoryBreakerStateStore()
-        from aeropass.adapters.redis.breaker_state import RedisBreakerStateStore
-        from aeropass.adapters.redis.client import get_redis
+            from aeropass.adapters.faults.context import REDIS_DOWN
+            from aeropass.adapters.faults.wrappers import redis_error
 
-        return RedisBreakerStateStore(get_redis())
+            return cast(
+                BreakerStateStore,
+                self._fault_proxy(InMemoryBreakerStateStore(), REDIS_DOWN, redis_error),
+            )
+        from aeropass.adapters.redis.breaker_state import RedisBreakerStateStore
+
+        return RedisBreakerStateStore(self.redis)
 
     def breaker(self, name: str) -> CircuitBreaker:
         return CircuitBreaker(name, self.breaker_store, self.clock)
 
     @cached_property
     def media_storage(self) -> MediaStorage:
+        from aeropass.adapters.faults.context import BLOB_DOWN
+        from aeropass.ports.media_storage import MediaUnavailable
+
         if self.fake:
             from aeropass.adapters.fakes.media_storage import InMemoryMediaStorage
 
-            return InMemoryMediaStorage()
+            return cast(
+                MediaStorage,
+                self._fault_proxy(
+                    InMemoryMediaStorage(),
+                    BLOB_DOWN,
+                    lambda: MediaUnavailable("fault injected: blob_down"),
+                ),
+            )
         from aeropass.adapters.blob.client import get_blob_client
         from aeropass.adapters.blob.vercel_blob_storage import VercelBlobStorage
 
-        return VercelBlobStorage(get_blob_client(), self.settings.blob_timeout_seconds)
+        # Underneath the adapter: it turns the client's OSError into MediaUnavailable itself.
+        client = self._fault_proxy(
+            get_blob_client(), BLOB_DOWN, lambda: OSError("fault injected: blob_down")
+        )
+        return VercelBlobStorage(client, self.settings.blob_timeout_seconds)
 
     @cached_property
     def biometric_provider(self) -> ResilientBiometricProvider:
@@ -128,6 +177,10 @@ class Container:
             from aeropass.adapters.qstash.publisher import QStashEventPublisher
 
             inner = QStashEventPublisher(get_qstash(), self.settings.qstash_events_url_group)
+        if self.faults:
+            from aeropass.adapters.faults.wrappers import FaultInjectingEventPublisher
+
+            inner = FaultInjectingEventPublisher(inner)
         return ResilientEventPublisher(
             inner, self.breaker("qstash"), self.settings.qstash_timeout_seconds
         )
@@ -150,12 +203,20 @@ class Container:
     def token_store(self) -> TokenStore:
         if self.fake:
             from aeropass.adapters.fakes.token_store import FakeTokenStore
+            from aeropass.adapters.faults.context import REDIS_DOWN
+            from aeropass.ports.token_store import TokenStoreUnavailable
 
-            return FakeTokenStore(self.clock)
-        from aeropass.adapters.redis.client import get_redis
+            return cast(
+                TokenStore,
+                self._fault_proxy(
+                    FakeTokenStore(self.clock),
+                    REDIS_DOWN,
+                    lambda: TokenStoreUnavailable("fault injected: redis_down"),
+                ),
+            )
         from aeropass.adapters.redis.token_store import UpstashTokenStore
 
-        return UpstashTokenStore(get_redis())
+        return UpstashTokenStore(self.redis)
 
     @cached_property
     def token_proxy(self) -> RedisVerificationProxy:
@@ -166,11 +227,15 @@ class Container:
         if self.fake:
             from aeropass.adapters.fakes.rate_limiter import FakeRateLimiter
 
-            return FakeRateLimiter(self.clock)
-        from aeropass.adapters.redis.client import get_redis
+            limiter: RateLimiter = FakeRateLimiter(self.clock)
+            if self.faults:
+                from aeropass.adapters.faults.wrappers import FaultInjectingRateLimiter
+
+                limiter = FaultInjectingRateLimiter(limiter)
+            return limiter
         from aeropass.adapters.redis.rate_limiter import UpstashRateLimiter
 
-        return UpstashRateLimiter(get_redis())
+        return UpstashRateLimiter(self.redis)
 
     @cached_property
     def flight_catalog(self) -> FlightCatalog:
@@ -178,6 +243,14 @@ class Container:
 
     @cached_property
     def signer(self) -> CredentialSigner:
+        signer = self._real_signer()
+        if not self.faults:
+            return signer
+        from aeropass.adapters.faults.wrappers import FaultInjectingSigner
+
+        return cast(CredentialSigner, FaultInjectingSigner(signer))
+
+    def _real_signer(self) -> CredentialSigner:
         key = self.settings.qr_signing_private_key.replace("\\n", "\n").strip()
         if key:
             return CredentialSigner.from_pem(key, self.settings.qr_signing_kid)
@@ -234,11 +307,9 @@ class Container:
     def health_service(self) -> HealthService:
         from aeropass.adapters.health.checks import DatabaseHealthCheck, RedisHealthCheck
 
-        checks: list[HealthCheck] = [DatabaseHealthCheck(self.session_factory)]
+        checks: list[HealthCheck] = [DatabaseHealthCheck(self._sessions())]
         if not self.fake:  # fake mode has no real Redis to check
-            from aeropass.adapters.redis.client import get_redis
-
-            checks.append(RedisHealthCheck(get_redis()))
+            checks.append(RedisHealthCheck(self.redis))
         return HealthService(checks)
 
     @cached_property

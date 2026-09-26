@@ -9,6 +9,7 @@ from __future__ import annotations
 import itertools
 from pathlib import Path
 
+from aeropass.adapters.faults.context import KNOWN_FAULTS
 from aeropass.domain.enums import EstadoPasajero, MotivoFallo, ResultadoIntento
 from aeropass.observability import telemetry_catalog as tc
 from aeropass.observability.hooks import emit_audit
@@ -31,6 +32,7 @@ _VALUES = {
         EstadoPasajero.REQUIERE_REVISION_MANUAL.value,
     ],
     "dependencia": ["biometric", "qstash"],
+    "fault": sorted(KNOWN_FAULTS),
 }
 _FORBIDDEN = {"numero_documento": "1234567890", "token": "eyJ.secret"}
 

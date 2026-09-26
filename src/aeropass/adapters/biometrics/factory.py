@@ -55,4 +55,9 @@ class BiometricProviderFactory:
             )
         else:
             inner = MockBiometricAdapter()
+        if settings.fault_injection_enabled:
+            # Spec 003: inside the breaker, so its timeout and opening react for real.
+            from aeropass.adapters.faults.wrappers import FaultInjectingBiometricProvider
+
+            inner = FaultInjectingBiometricProvider(inner)
         return ResilientBiometricProvider(inner, breaker, settings.biometric_timeout_seconds)
