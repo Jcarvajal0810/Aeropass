@@ -3,7 +3,7 @@
 from functools import cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     sentry_traces_sample_rate: float = Field(default=1.0, ge=0, le=1)
     # Injected by Vercel on every deployment; used as the Sentry release.
     vercel_git_commit_sha: str = ""
+    # Injected by Vercel: "production", "preview" or "development".
+    vercel_env: str = ""
+
+    # Per-request fault injection (spec 003, header X-AeroPass-Fault). Never in production: see
+    # ``_fault_injection_never_in_production``.
+    fault_injection_enabled: bool = False
+    # When set, a fault is honoured only with a matching X-AeroPass-Fault-Key header.
+    fault_injection_secret: str = ""
 
     @field_validator("qr_ttl_seconds")
     @classmethod
@@ -73,6 +81,17 @@ class Settings(BaseSettings):
         if not 0 <= v <= 1:
             raise ValueError("biometric thresholds must be between 0 and 1")
         return v
+
+    @model_validator(mode="after")
+    def _fault_injection_never_in_production(self) -> "Settings":
+        if self.fault_injection_enabled and (
+            self.vercel_env == "production" or self.sentry_environment == "prod"
+        ):
+            raise ValueError(
+                "FAULT_INJECTION_ENABLED must never be on in production "
+                "(VERCEL_ENV=production or SENTRY_ENVIRONMENT=prod)"
+            )
+        return self
 
     @property
     def migrations_url(self) -> str:

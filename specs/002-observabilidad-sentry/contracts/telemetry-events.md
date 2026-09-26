@@ -17,6 +17,7 @@ Cada evento de auditoría registrado produce **un** log `info` con cuerpo `aerop
 | `aeropass.motivo` | según evento | enum `MotivoFallo` |
 | `aeropass.estado` | según evento | `VERIFICADO` \| `REQUIERE_REVISION_MANUAL` |
 | `aeropass.dependencia` | según evento | nombre del circuit breaker |
+| `aeropass.fault` | según evento | nombre del fallo inyectado (spec 003): `blob_down`, `mxface_down`, `mxface_slow`, `mxface_quota`, `db_down`, `redis_down`, `signing_down`, `qstash_down` |
 
 | Evento | Emisor | Log | Atributos extra | Métricas |
 |---|---|---|---|---|
@@ -25,6 +26,7 @@ Cada evento de auditoría registrado produce **un** log `info` con cuerpo `aerop
 | `credential.consume` | `CredentialLifecycleService.consume` | siempre | — | — |
 | `auth.authenticate` | `ClerkAuthenticator` / `FakeAuth` | **solo `error`** (una por request: el `ok` sería ruido y costo) | — | — |
 | `resilience.circuit_opened` | `CircuitBreaker` (apertura y reapertura) | siempre (nivel `warning`) | `dependencia` | `aeropass.circuit_breaker.apertura` |
+| `fault.injected` | `adapters/faults` (spec 003), la primera vez que cada fallo pedido con `X-AeroPass-Fault` se dispara en una petición. Solo con `FAULT_INJECTION_ENABLED`, nunca en producción | siempre (nivel `warning`); además la etiqueta `fault_injected` en el scope de Sentry de la petición | `fault` | — |
 
 Un evento que no esté en esta tabla no se envía (lista blanca). Para agregar uno: fila aquí, entrada en el catálogo, prueba.
 

@@ -69,6 +69,10 @@ class SentryAuditSink:
         if spec is None:
             return
         with capture_internal_exceptions():
+            if event == tc.FAULT_INJECTED:
+                # Spec 003: every error and transaction of this request carries the mark, so an
+                # injected failure is never mistaken for a real incident.
+                sentry_sdk.set_tag("fault_injected", str(data.get("fault", "")))
             if not spec.errors_only or data.get("outcome") == tc.OUTCOME_ERROR:
                 attributes = {tc.EVENT_ATTRIBUTE: event, **_attributes(data, spec.allowed_keys)}
                 log = sentry_logger.warning if spec.level == "warning" else sentry_logger.info
