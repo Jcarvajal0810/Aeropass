@@ -69,6 +69,12 @@ def _clean_span(span: dict[str, Any]) -> None:
             data.pop(key, None)
         if isinstance(data.get("url"), str):
             data["url"] = strip_query(data["url"])
+        # sentry-sdk's httpx integration records the URL but not ``server.address``, which W10
+        # groups by: without it every outgoing call is "unknown provider". Only the host.
+        if span.get("op") == "http.client" and not data.get("server.address"):
+            host = urlsplit(data.get("url") or "").hostname
+            if host:
+                data["server.address"] = host
     description = span.get("description")
     if isinstance(description, str) and "?" in description:
         span["description"] = description.split("?", 1)[0]

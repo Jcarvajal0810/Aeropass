@@ -9,11 +9,13 @@ as the endpoint.
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import logging
 from typing import Any
 
-from aeropass.adapters.faults.context import activate, deactivate, parse
+from aeropass.adapters.faults.context import SLOW, activate, deactivate, parse, trip
+from aeropass.observability.hooks import span
 
 logger = logging.getLogger("aeropass.faults")
 
@@ -64,6 +66,10 @@ class FaultInjectionMiddleware:
 
         token = activate(plan)
         try:
+            if trip(SLOW):
+                # A named step, so W9 shows where the time went and W6 grows for /v1/passes.
+                with span("fault.slow"):
+                    await asyncio.sleep(plan.request_slow_ms / 1000)
             await self.app(scope, receive, send_with_applied)
         finally:
             deactivate(token)

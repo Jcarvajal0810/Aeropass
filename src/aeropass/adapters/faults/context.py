@@ -25,6 +25,8 @@ DB_DOWN = "db_down"
 REDIS_DOWN = "redis_down"
 SIGNING_DOWN = "signing_down"
 QSTASH_DOWN = "qstash_down"
+# The whole request is delayed (a visible ``fault.slow`` step): moves W6 and W9.
+SLOW = "slow"
 
 KNOWN_FAULTS = frozenset(
     {
@@ -36,18 +38,22 @@ KNOWN_FAULTS = frozenset(
         REDIS_DOWN,
         SIGNING_DOWN,
         QSTASH_DOWN,
+        SLOW,
     }
 )
 
 # ``mxface_slow`` without a value, and the cap on any value (Vercel cuts functions at 30 s).
 DEFAULT_SLOW_MS = 12_000
 MAX_SLOW_MS = 60_000
+# ``slow`` without a value: enough to break the p95 target of KR A2.4 (3 s).
+DEFAULT_REQUEST_SLOW_MS = 4_000
 
 
 @dataclass(frozen=True)
 class FaultPlan:
     faults: frozenset[str] = frozenset()
     slow_ms: int = DEFAULT_SLOW_MS
+    request_slow_ms: int = DEFAULT_REQUEST_SLOW_MS
     # Faults that actually fired in this request (shared by reference with the middleware).
     applied: set[str] = field(default_factory=set, compare=False, hash=False)
 
@@ -60,6 +66,7 @@ def parse(header: str) -> tuple[FaultPlan, list[str]]:
     faults: set[str] = set()
     unknown: list[str] = []
     slow_ms = DEFAULT_SLOW_MS
+    request_slow_ms = DEFAULT_REQUEST_SLOW_MS
     for raw in header.split(","):
         item = raw.strip().lower()
         if not item:
@@ -68,14 +75,18 @@ def parse(header: str) -> tuple[FaultPlan, list[str]]:
         if name not in KNOWN_FAULTS:
             unknown.append(item)
             continue
-        if name == MXFACE_SLOW and value:
+        if name in (MXFACE_SLOW, SLOW) and value:
             try:
-                slow_ms = max(0, min(int(value), MAX_SLOW_MS))
+                ms = max(0, min(int(value), MAX_SLOW_MS))
             except ValueError:
                 unknown.append(item)
                 continue
+            if name == MXFACE_SLOW:
+                slow_ms = ms
+            else:
+                request_slow_ms = ms
         faults.add(name)
-    return FaultPlan(frozenset(faults), slow_ms), unknown
+    return FaultPlan(frozenset(faults), slow_ms, request_slow_ms), unknown
 
 
 def activate(plan: FaultPlan) -> Token[FaultPlan | None]:

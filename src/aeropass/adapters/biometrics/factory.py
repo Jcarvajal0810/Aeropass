@@ -41,23 +41,34 @@ class BiometricProviderFactory:
     @staticmethod
     def create(settings: Settings, breaker: CircuitBreaker) -> ResilientBiometricProvider:
         inner: BiometricProvider
+        faults = settings.fault_injection_enabled
         if settings.biometric_provider == "vision":
             inner = VisionProviderAdapter(
-                httpx.AsyncClient(),
+                _http_client(faults),
                 settings.vision_provider_url,
                 settings.vision_provider_api_key,
             )
         elif settings.biometric_provider == "mxface":
             inner = MxFaceAdapter(
-                httpx.AsyncClient(),
+                _http_client(faults),
                 settings.mxface_subscription_key,
                 settings.mxface_base_url,
             )
         else:
             inner = MockBiometricAdapter()
-        if settings.fault_injection_enabled:
-            # Spec 003: inside the breaker, so its timeout and opening react for real.
-            from aeropass.adapters.faults.wrappers import FaultInjectingBiometricProvider
+            if faults:
+                # Spec 003: the mock makes no HTTP call, so its faults are raised here, still
+                # inside the breaker, so its timeout and opening react for real.
+                from aeropass.adapters.faults.wrappers import FaultInjectingBiometricProvider
 
-            inner = FaultInjectingBiometricProvider(inner)
+                inner = FaultInjectingBiometricProvider(inner)
         return ResilientBiometricProvider(inner, breaker, settings.biometric_timeout_seconds)
+
+
+def _http_client(fault_injection: bool) -> httpx.AsyncClient:
+    """HTTP providers answer injected faults at the transport (a real 503/429 in W10)."""
+    if not fault_injection:
+        return httpx.AsyncClient()
+    from aeropass.adapters.faults.wrappers import provider_http_client
+
+    return provider_http_client(True)

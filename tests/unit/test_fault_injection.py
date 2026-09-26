@@ -188,3 +188,50 @@ def test_context_module_exposes_every_fault_the_app_offers():
         "qstash_down",
     }
     assert offered <= context.KNOWN_FAULTS
+
+
+# --- visibility in the dashboard (W6, W9, W10) ------------------------------------------
+def test_parse_the_request_slow_fault():
+    from aeropass.adapters.faults.context import DEFAULT_REQUEST_SLOW_MS, SLOW
+
+    plan, _ = parse("slow:2500,mxface_slow:9000")
+    assert plan.faults == {SLOW, MXFACE_SLOW}
+    assert plan.request_slow_ms == 2500
+    assert plan.slow_ms == 9000
+    assert parse("slow")[0].request_slow_ms == DEFAULT_REQUEST_SLOW_MS
+
+
+async def test_provider_faults_are_real_http_answers():
+    import httpx
+
+    from aeropass.adapters.faults.wrappers import FaultInjectingTransport
+
+    inner = httpx.MockTransport(lambda request: httpx.Response(200, json={"ok": True}))
+    async with httpx.AsyncClient(transport=FaultInjectingTransport(inner)) as client:
+        assert (await client.get("https://faceapi.mxface.ai/api/v3/x")).status_code == 200
+        for fault, status in (("mxface_down", 503), ("mxface_quota", 429)):
+            token = activate(parse(fault)[0])
+            try:
+                response = await client.get("https://faceapi.mxface.ai/api/v3/x")
+            finally:
+                deactivate(token)
+            assert response.status_code == status
+
+
+async def test_the_real_adapter_turns_an_injected_answer_into_provider_unavailable():
+    import httpx
+
+    from aeropass.adapters.biometrics.mxface_adapter import MxFaceAdapter
+    from aeropass.adapters.faults.wrappers import FaultInjectingTransport
+    from aeropass.domain.images import ImageInput
+    from aeropass.ports.biometric_provider import ProviderUnavailable
+
+    inner = httpx.MockTransport(lambda request: httpx.Response(200, json={}))
+    adapter = MxFaceAdapter(httpx.AsyncClient(transport=FaultInjectingTransport(inner)), "key")
+    image = ImageInput(data=b"\xff\xd8\xff", content_type="image/jpeg")
+    token = activate(parse("mxface_quota")[0])
+    try:
+        with pytest.raises(ProviderUnavailable, match="429"):
+            await adapter.evaluate(image, image)
+    finally:
+        deactivate(token)

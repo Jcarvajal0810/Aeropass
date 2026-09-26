@@ -17,9 +17,10 @@ Varios fallos se combinan con coma (`blob_down,redis_down`). La columna "Respues
 | Valor | Dónde se inyecta | Respuesta de la API | Señales (spec 002) |
 |---|---|---|---|
 | `blob_down` | Cliente de Vercel Blob (debajo de `VercelBlobStorage`, que lo convierte en `MediaUnavailable`); en modo fake, el almacén en memoria | Registro y selfie: `503 ALMACENAMIENTO_NO_DISPONIBLE` con `Retry-After` | W2, W11 |
-| `mxface_down` | Proveedor biométrico **dentro** del breaker | `200` `NO_CONCLUYENTE`, sin gastar intento | W8, W10; 5 en 60 s abren el breaker real → W7, **B3** |
-| `mxface_slow:<ms>` | Proveedor, espera `<ms>` (tope 60 000; sin valor, 12 000) | `NO_CONCLUYENTE` si supera `BIOMETRIC_TIMEOUT_SECONDS` | W9 (`deadline_exceeded`), W8 |
-| `mxface_quota` | Proveedor: `ProviderUnavailable("provider status 429")` | `200` `NO_CONCLUYENTE` | W10, W8 |
+| `mxface_down` | MX Face y el proveedor de visión: el **transporte HTTP** responde un 503 real. El mock: dentro del breaker | `200` `NO_CONCLUYENTE`, sin gastar intento | W8, **W10 (503 con el host del proveedor)**; 5 en 60 s abren el breaker real → W7, **B3** |
+| `mxface_slow:<ms>` | Proveedor (transporte HTTP o mock), espera `<ms>` (tope 60 000; sin valor, 12 000) | `NO_CONCLUYENTE` si supera `BIOMETRIC_TIMEOUT_SECONDS` | W9 (`deadline_exceeded`), W8 |
+| `mxface_quota` | MX Face: el transporte HTTP responde un **429 real**. El mock: `ProviderUnavailable("provider status 429")` | `200` `NO_CONCLUYENTE` | **W10 (429 con el host del proveedor)**, W8 |
+| `slow:<ms>` | Toda la petición espera `<ms>` (sin valor, 4 000) dentro de un paso llamado `fault.slow` | La respuesta normal, más lenta | **W6** (p95 y p99 de `/v1/passes` si se aplica ahí), **W9** (fila `fault.slow`) |
 | `db_down` | Apertura de sesión de SQLAlchemy (`OperationalError`), en `uow()` y en `/health` | **Hoy no controlado (500)** → hallazgo §6 | W1, **B1**; `/health` → `503` |
 | `redis_down` | Cliente de Upstash (debajo de limitador, token store, estado del breaker y `/health`) | Emisión de pase: `503 ALMACENAMIENTO_NO_DISPONIBLE`; el limitador deja pasar (fail-open) y la credencial se revoca porque el token no se pudo registrar | W11; `/health` → `503` |
 | `signing_down` | `CredentialSigner.sign` | **Hoy no controlado (500)** → hallazgo §6 | W11, **B1** |
@@ -40,6 +41,11 @@ Nombres desconocidos: warning `fault_injection_unknown` en el log y la petición
 - **`adapters/biometrics/factory.py`**: el envoltorio del proveedor va dentro de `ResilientBiometricProvider`, así que el timeout y la apertura del breaker reaccionan de verdad.
 
 ## 5. Observabilidad
+
+**Visibilidad en el tablero (revisión del 26/09/2026).** Tres cambios para que cada fallo inyectado mueva su widget sin tocar el tablero:
+- Los fallos del proveedor se responden **en el transporte HTTP** (`FaultInjectingTransport`) cuando el proveedor es MX Face o el de visión: la integración httpx de Sentry registra una llamada `http.client` real con su código (503 o 429) y el adaptador la maneja como una respuesta verdadera.
+- `sentry-sdk` 2.70 no escribe `server.address` en las llamadas httpx, y W10 agrupa por ese campo: el filtro de privacidad lo completa con el host de la URL (solo el host). Esto también arregla W10 para el tráfico real.
+- El fallo nuevo `slow:<ms>` hace visible la latencia: un paso `fault.slow` en W9 y la duración de la transacción en W6.
 
 - Evento de auditoría **`fault.injected`** (nivel `warning`) con el atributo **`aeropass.fault`**, en el catálogo (`telemetry_catalog.py`) y en el contrato (`002/contracts/telemetry-events.md`).
 - `SentryAuditSink` pone la etiqueta **`fault_injected`** en el scope de Sentry de la petición: errores y transacciones de esa petición llevan la marca.
